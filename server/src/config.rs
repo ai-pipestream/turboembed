@@ -102,6 +102,9 @@ pub const ENV_ZOO: &str = "TURBO_KSERVE_ZOO";
 /// The variable `--bundle-dir` reads when absent.
 pub const ENV_BUNDLE_DIR: &str = "TURBO_KSERVE_BUNDLE_DIR";
 
+/// The variable `--bundle-device` reads when absent.
+pub const ENV_BUNDLE_DEVICE: &str = "TURBO_KSERVE_BUNDLE_DEVICE";
+
 /// The environment variables, each what the flag of the same name is when
 /// the flag is absent. `TURBO_KSERVE_MODELS` holds `--model` values
 /// separated by `;`, and is read only when no `--model` is given.
@@ -131,13 +134,13 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=cpu|BACKEND:N|INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL | --catalog-data DIR] [--catalog-prefetch permissive] [--zoo]] \
+[--bundle-dir DIR [--bundle-device DEVICE]] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL | --catalog-data DIR] [--catalog-prefetch permissive] [--zoo]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] [--sink-search-projection] \
 [--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]] [--sink-pii-output LIST]] \
 [--pii-output-allow none|rewritten-text,full-text,detail] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT] [--pii-policy PATH ...]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
-TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
+TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_BUNDLE_DEVICE, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
 TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_DATA, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_SINK_DOCUMENTS, TURBO_KSERVE_SINK_TYPED_OFFSETS, \
 TURBO_KSERVE_SINK_TYPED_VIEW, TURBO_KSERVE_SINK_PII_OUTPUT, TURBO_KSERVE_PII_OUTPUT_ALLOW, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
@@ -180,7 +183,7 @@ impl Args {
         let (mut catalog_dir, mut catalog_index, mut catalog_store, mut catalog_data) = (None, None, None, None);
         let (mut catalog_prefetch, mut pii_output_allow) = (None, None);
         let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
-        let (mut models, mut pii_policies) = (Vec::new(), Vec::new());
+        let (mut models, mut pii_policies, mut bundle_device) = (Vec::new(), Vec::new(), None);
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
             let (flag, inline) = match a.split_once('=') {
@@ -213,6 +216,7 @@ impl Args {
                         return Err("--bundle-dir given twice".into());
                     }
                 }
+                "--bundle-device" => once(&flag, value()?, &mut bundle_device)?,
                 "--admin" => {
                     if inline.is_some() || admin.replace(true).is_some() {
                         return Err("--admin takes no value and may be given once".into());
@@ -272,6 +276,7 @@ impl Args {
             }
         }
         bundle_dir = from_env(bundle_dir, ENV_BUNDLE_DIR);
+        bundle_device = from_env(bundle_device, ENV_BUNDLE_DEVICE);
         if max_message_bytes.is_none()
             && let Some(v) = env(ENV_MAX_MESSAGE_BYTES).filter(|v| !v.is_empty())
         {
@@ -348,8 +353,13 @@ impl Args {
         {
             metrics_listen = Some(v.parse().map_err(|_| refused(ENV_METRICS_LISTEN, &v, "ADDR:PORT"))?);
         }
+        let bundle_device = match bundle_device {
+            Some(_) if bundle_dir.is_none() => return Err("--bundle-device needs --bundle-dir".into()),
+            Some(v) => Device::parse(&v).map_err(|e| e.replace("--model device", "--bundle-device"))?,
+            None => Device::Position(0),
+        };
         if let Some(dir) = &bundle_dir {
-            bundles::discover(dir, &mut models)?;
+            bundles::discover(dir, bundle_device, &mut models)?;
         }
         let listen = listen.ok_or("--listen is required")?;
         names_with(&models, admin || zoo)?;

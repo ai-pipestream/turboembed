@@ -383,9 +383,10 @@ jobs:
       # The server with the npu backend linked on a host with no Intel NPU:
       # the backend lists no device, so the runtime's device 0 is the CPU,
       # and a numbered or npu-named device must be refused, not loaded on
-      # the CPU (#2508).
-      - name: test (server device names, npu linked)
-        run: scripts/test-in-scratch.sh cargo test -p turbo-kserve --features npu --test device_named
+      # the CPU (#2508). The whole suite runs, so every test names the
+      # device it loads on.
+      - name: test (server, npu linked)
+        run: scripts/test-in-scratch.sh cargo test -p turbo-kserve --features npu
       - name: test (fuzz command)
         run: scripts/test-in-scratch.sh cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host

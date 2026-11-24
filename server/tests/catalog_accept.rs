@@ -258,19 +258,17 @@ fn bundle_under(home: &Home, licence: &str) -> PathBuf {
 /// acceptance; a permissive one needs none.
 #[tokio::test]
 async fn load_bundle_needs_the_loading_users_acceptance() {
-    use turbo_kserve::proto::result::LoadBundleRequest;
     use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+    use turbo_kserve::proto::result::{DeviceBackend, DeviceName, LoadBundleRequest};
     let home = Home::new("load");
     let (s, mut c) = start(&home.0, true).await;
     let mut a = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
     let sa = bundle_under(&home, "CC-BY-SA-4.0");
-    let rt = turbo_kserve::api::Runtime::create().unwrap();
-    let cpu = (0..16).find(|&i| rt.device_info(i).is_ok_and(|d| d.kind == turbo::TURBO_DEVICE_CPU)).expect("a CPU");
     let load = |name: &str, dir: &Path, user: &str| LoadBundleRequest {
         name: name.into(),
         bundle: dir.to_str().unwrap().into(),
         sessions: 1,
-        device: cpu,
+        device_name: Some(DeviceName { backend: DeviceBackend::Cpu as i32, ordinal: 0 }),
         user: user.into(),
         ..Default::default()
     };

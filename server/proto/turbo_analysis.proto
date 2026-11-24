@@ -353,8 +353,8 @@ message LoadBundleRequest
   string bundle = 2;
 
   // A runtime device index (docs/grpc.md, Device names and indices). Refused with
-  // DEVICE_NOT_FOUND while a linked backend lists no device, as the
-  // indices have then moved; `device_name` names one device instead.
+  // DEVICE_NOT_FOUND when a backend linked ahead of its device lists
+  // none, as its number has moved; `device_name` names one device instead.
   uint32 device = 3;
 
   // Sessions the model pools; at least 1.

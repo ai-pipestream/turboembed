@@ -93,7 +93,8 @@ itself.
 | `--admin-bearer-token-file PATH` | File holding an admin bearer token authorizing both read/inference and state-mutating admin RPCs (trimmed); repeat for multiple files. | Off. |
 | `--metrics-listen ADDR:PORT` | Serve Prometheus metrics in text exposition format (`0.0.4`) on `GET /metrics` over HTTP. | Off. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` or `--zoo` is set. |
-| `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on runtime device 0 (refused while a linked backend lists no device, as below) with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
+| `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on `--bundle-device` with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
+| `--bundle-device DEVICE` | The device `--bundle-dir` serves on, as `device` takes it (`cpu`, `cuda:0`, ...). Needs `--bundle-dir`. | Runtime device 0, refused when its number has moved (Device names and indices). |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
 | `--max-stream-bytes N` | The most bytes one call's request carries in all, every frame and its five-byte prefix counted; the frame that passes it ends the call with `RESOURCE_EXHAUSTED`. At least `--max-message-bytes`. | 2 GiB. |
 | `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md), the search service's `PersistIndex` and snapshot `CreateIndex` (docs/grpc-search.md), the vocabulary store's writes (docs/grpc-vocabulary.md) and the catalog's `RecordLicenceAcceptance` and `InstallModel` (docs/grpc-catalog.md), the training service's `TrainStaticModel`, `DeleteStaticModel`, `TrainComponent` and `StreamingTraining` (docs/grpc-training.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
@@ -163,9 +164,12 @@ the cpu backend alone, the CPU is device 0; `turbo_runtime_device_info`
 reports each index's kind and name. An index is a position, so when a
 linked backend lists no device every later device moves up: on a CUDA
 build started without its GPU, index 0 is the CPU. An index (`device=N`,
-`LoadBundle.device`, `--bundle-dir`) is therefore refused with
-`TURBO_E_DEVICE_NOT_FOUND` while any linked backend lists no device;
-name the device instead.
+`LoadBundle.device`, `--bundle-dir` without `--bundle-device`) is
+therefore refused with `TURBO_E_DEVICE_NOT_FOUND` when a backend linked
+ahead of its device lists none; name the device instead. A backend that
+lists fewer devices than on another host (one GPU of two) moves the
+numbers too and is not seen: only a named device is held to the device
+it names.
 
 ### Message and stream limits
 
@@ -201,6 +205,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_METRICS_LISTEN` | `--metrics-listen` |
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_BUNDLE_DIR` | `--bundle-dir` |
+| `TURBO_KSERVE_BUNDLE_DEVICE` | `--bundle-device` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
 | `TURBO_KSERVE_MAX_STREAM_BYTES` | `--max-stream-bytes` |
 | `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |

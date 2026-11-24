@@ -192,17 +192,22 @@ pub fn the_one_bundle(list: &CapabilitiesResponse) -> &BundleCapabilities {
     &list.bundles[0]
 }
 
+/// The CPU by name, for a LoadBundle request (#2508).
+pub fn cpu_name() -> Option<DeviceName> {
+    Some(DeviceName { backend: DeviceBackend::Cpu as i32, ordinal: 0 })
+}
+
 pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> LoadBundleRequest {
     LoadBundleRequest {
         name: name.into(),
         bundle: bundle.into(),
-        device: cpu(),
+        device: 0,
         sessions,
         precision,
         max_batch: 0,
         max_seq: 0,
         select_device: false,
-        device_name: None,
+        device_name: cpu_name(),
         user: String::new(),
         vocabulary: None,
     }

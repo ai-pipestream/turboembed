@@ -189,13 +189,13 @@ async fn unload_and_reload_under_one_name_never_share_a_batch() {
     c.load_bundle(LoadBundleRequest {
         name: NAME.into(),
         bundle: tiny().to_str().unwrap().to_string(),
-        device: cpu(),
+        device: 0,
         sessions: 1,
         precision: 0,
         max_batch: 0,
         max_seq: 8,
         select_device: false,
-        device_name: None,
+        device_name: cpu_name(),
         user: String::new(),
         vocabulary: None,
     })

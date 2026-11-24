@@ -8,8 +8,8 @@ use crate::api::names;
 pub enum Device {
     /// A runtime index the server already resolved, used as it is.
     Index(u32),
-    /// A runtime index as the caller wrote it (`device=N`): refused while
-    /// a linked backend lists no device, as the numbers have then moved.
+    /// A runtime index as the caller wrote it (`device=N`): refused when
+    /// a backend linked ahead of its device lists none, as it has moved.
     Position(u32),
     /// A device by its backend and its ordinal there (`cuda:0`, `cpu`).
     Named(crate::device::Named),

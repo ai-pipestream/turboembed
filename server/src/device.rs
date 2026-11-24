@@ -6,7 +6,11 @@
 //! older than the runtime), every later device moves up, so `device=0`
 //! that meant a GPU names the next backend's device or the CPU. A device
 //! named by its backend and its ordinal there (`cuda:0`, `cpu`) names
-//! one device or none, and none is a refusal, never another device.
+//! one device or none, and none is a refusal, never another device. A
+//! typed index is refused when a backend linked ahead of its device
+//! lists none, as the number then names a different device than on a
+//! host where every backend lists its devices. A backend that lists fewer
+//! devices than another host's is not seen here: name the device.
 
 use crate::api::{Failure, Runtime, TURBO_E_DEVICE_NOT_FOUND};
 use crate::config::Device;
@@ -87,8 +91,8 @@ fn not_found(message: String) -> Failure {
 
 /// The runtime index `device` names; `task` is what `select` picks for.
 /// A named device the runtime does not list is DEVICE_NOT_FOUND, and so
-/// is a typed position while a linked backend lists no device, as the
-/// positions have moved.
+/// is a typed position when a backend linked ahead of its device lists
+/// none, as its number has moved.
 pub fn resolve(rt: &Runtime, device: Device, task: u32) -> Result<u32, Failure> {
     match device {
         Device::Index(i) => Ok(i),
@@ -116,8 +120,16 @@ pub fn resolve(rt: &Runtime, device: Device, task: u32) -> Result<u32, Failure> 
         }
         Device::Position(i) => {
             let devices = listed(rt)?;
-            let empty: Vec<String> =
-                linked().into_iter().filter(|b| !devices.iter().any(|d| d.backend == *b)).collect();
+            // Only an empty backend linked before index i's own backend
+            // moves i; past the end of the list, any empty one may have.
+            let linked = linked();
+            let own = devices.iter().find(|d| d.index == i).map(|d| d.backend.as_str());
+            let before = own.and_then(|b| linked.iter().position(|l| l == b)).unwrap_or(linked.len());
+            let empty: Vec<&str> = linked[..before]
+                .iter()
+                .filter(|b| !devices.iter().any(|d| d.backend == **b))
+                .map(String::as_str)
+                .collect();
             if !empty.is_empty() {
                 let msg = format!(
                     "device {i}: the {} backend lists no device, so the runtime's device numbers have moved \

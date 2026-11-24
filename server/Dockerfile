@@ -15,9 +15,10 @@
 #
 # The image holds no model. Bundles are mounted under /bundles, one
 # directory each, and every one found there is served on device 0 with one
-# session, refused when a linked backend lists no device (docs/grpc.md,
-# Device names and indices); TURBO_KSERVE_MODELS or --model sets anything
-# else, such as device=cuda:0 (docs/grpc.md, Flags). The server listens on 0.0.0.0:8081.
+# session on TURBO_KSERVE_BUNDLE_DEVICE (such as cuda:0), else on runtime
+# device 0, refused when its number has moved (docs/grpc.md, Device names
+# and indices); TURBO_KSERVE_MODELS or --model sets anything else
+# (docs/grpc.md, Flags). The server listens on 0.0.0.0:8081.
 #
 # Both bases are pinned by the digest of their multi-arch index, so a
 # rebuild of a tag is the same build; a new digest is a reviewed change.
