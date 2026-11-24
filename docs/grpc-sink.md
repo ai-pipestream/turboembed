@@ -94,7 +94,11 @@ handed the event and the reply has ended. The item's `doc_id` is the
 request's `doc_id`, as the call's own events carry it, empty when the
 request gives none, as an `AnalyzeStream` answer carries the id its
 document gave. A call that ends in an error, runs out of time, or whose
-client went away before the `Complete` event is not forwarded. Forwarding
+client went away before the `Complete` event is not forwarded; that
+includes a call whose `typed_result` asks for a view the final graph does
+not hold, which fails after every step ran, so the sink is offered
+nothing for it. The item never carries that typed projection: it is
+built from the unprojected export. Forwarding
 never fails or delays the call: a full queue drops and counts the item as
 it does an `AnalyzeStream` answer. Without the flag, progressive calls
 forward nothing.
