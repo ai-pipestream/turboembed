@@ -618,10 +618,15 @@ typedef struct turbo_backend {
      * NULL where the backend has no such kernels. The core calls it
      * after session_run for a quantized write whose vectors sit in
      * device or shared memory, then buffer_read (or a host copy of a
-     * shared buffer) of only the codes. When run is not NULL the call adds
-     * its own allocations to its host_allocs and device_allocs, and the
-     * bytes it sends to the device (the int8 ranges, where the device has
-     * memory of its own) to its h2d_bytes. */
+     * shared buffer) of only the codes. A backend whose buf is DEVICE
+     * memory refuses TURBO_E_INTERNAL, naming the row and dimension, when
+     * any of the values is NaN or infinite, since the core cannot see them
+     * (cuda and levelzero do); the core checks SHARED values on the host
+     * before it calls. When run is not NULL the call adds its own
+     * allocations to its host_allocs and device_allocs, the bytes it
+     * sends to the device (the int8 ranges, where the device has memory
+     * of its own) to its h2d_bytes, and any bytes it reads back to its
+     * d2h_bytes. */
     int32_t (*buffer_quantize)(void *buf, uint32_t quantization, const float *int8_ranges,
                                uint32_t rows, uint32_t dim, turbo_backend_run *run, turbo_error *err);
 } turbo_backend;

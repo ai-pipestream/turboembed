@@ -142,6 +142,24 @@ pub struct Encode {
     pub prompt: PromptRole,
 }
 
+/// What one text came to against its token budget (issue #2511): a row
+/// that was cut says so, so no caller takes the vector of a text's first
+/// tokens for the vector of the text.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RowTokens {
+    /// Tokens in the row, special tokens included.
+    pub kept: u32,
+    /// Tokens the whole text gives, special tokens included. None when
+    /// the text was cut by characters before it was tokenized, as a
+    /// static model does under TRUNCATE_RIGHT: the count was never made.
+    /// A static model leaves unknown tokens out of its row, and out of
+    /// this count, as `Tokenizer::count` does: `truncated` is set exactly
+    /// when the row holds fewer of the text's tokens than this.
+    pub seen: Option<u32>,
+    /// Whether part of the text is not in the row.
+    pub truncated: bool,
+}
+
 /// Where a token came from: the bytes `[start, end)` of the caller's
 /// text, with any whitespace at either end left out unless the token is
 /// nothing else. A token that came from no character of the text, a
@@ -167,6 +185,8 @@ pub(crate) trait Sink {
     fn reverse_from(&mut self, at: usize);
     /// The tokens from `at` on whose id `keep` refuses are dropped.
     fn retain_from(&mut self, at: usize, keep: impl Fn(i32) -> bool);
+    /// How many tokens from `at` on `keep` accepts.
+    fn count_from(&self, at: usize, keep: impl Fn(i32) -> bool) -> usize;
     /// The tokens from `at` on, taken out: their ids and, when kept,
     /// their spans.
     fn split_off(&mut self, at: usize) -> (Vec<i32>, Vec<Span>);

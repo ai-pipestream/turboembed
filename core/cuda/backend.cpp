@@ -469,6 +469,12 @@ struct Context {
     cudaStream_t stream = nullptr;
     cublasHandle_t blas = nullptr;
     void *workspace = nullptr;
+    /* buffer_quantize's check word: mapped, pinned host memory the
+     * quantize kernels store the index of a value that is not finite in,
+     * and the device's address for it. The host sets it to INT32_MAX
+     * before each launch, so a run of finite values sends nothing back. */
+    int32_t *bad_host = nullptr;
+    int32_t *bad = nullptr;
     std::mutex lock;
 
     TURBO_PRINTF(3, 4) void say(uint32_t level, const char *fmt, ...) {
@@ -495,6 +501,7 @@ void release_context(Context *c) {
 #endif
     if (c->stream) cudaStreamDestroy(c->stream);
     if (c->workspace) cudaFree(c->workspace);
+    if (c->bad_host) cudaFreeHost(c->bad_host);
     delete c;
 }
 
@@ -509,6 +516,11 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
             cudaDeviceProp p;
             TRY_CUDA(cudaGetDeviceProperties(&p, (int)ordinal), "cudaGetDeviceProperties");
             TRY_CUDA(cudaStreamCreateWithFlags(&c->stream, cudaStreamNonBlocking), "cudaStreamCreateWithFlags");
+            TRY_CUDA(cudaHostAlloc(reinterpret_cast<void **>(&c->bad_host), sizeof *c->bad_host, cudaHostAllocMapped),
+                     "buffer_quantize's check word");
+            *c->bad_host = INT32_MAX;
+            TRY_CUDA(cudaHostGetDevicePointer(reinterpret_cast<void **>(&c->bad), c->bad_host, 0),
+                     "the device's address for buffer_quantize's check word");
 #ifdef TURBO_CUDA_CUBLAS
             TRY_CUDA(device_malloc(&c->workspace, CUBLAS_WORKSPACE), "the cuBLAS workspace");
             TRY_CUBLAS(cublasCreate(&c->blas), "cublasCreate");
@@ -769,8 +781,12 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
 /* int8 or ubinary codes of the first rows * dim F32 values of buf, into
  * the leading bytes of the same buffer, matching core/src/quantize.rs.
  * A temporary device allocation holds the codes so the write never races
- * the read of the floats. When run is not NULL the allocations made
- * here and the int8 ranges sent to the device are added to it. */
+ * the read of the floats. A value that is NaN or infinite is refused
+ * TURBO_E_INTERNAL, naming a row and dimension that hold one: the
+ * kernels store its index straight into the context's check word, which
+ * lives in mapped host memory, so nothing is copied back for it. When run
+ * is not NULL the allocations made here and the int8 ranges sent to the
+ * device are added to it. */
 int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
                         turbo_backend_run *run, turbo_error *err) {
     const uint64_t host0 = host_here, device0 = device_here;
@@ -793,44 +809,52 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
         if (b->bytes < code_bytes)
             return refuse(err, TURBO_E_INVALID_ARGUMENT, "buffer of %llu bytes is under the %llu code bytes",
                           (unsigned long long)b->bytes, (unsigned long long)code_bytes);
-        ON_DEVICE(b->ctx->ordinal);
-        std::lock_guard<std::mutex> g(b->ctx->lock);
-        cudaStream_t s = b->ctx->stream;
+        if (floats > (uint64_t)INT32_MAX)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "%llu F32 values to quantize is over 2^31 - 1",
+                          (unsigned long long)floats);
+        Context *c = b->ctx;
+        ON_DEVICE(c->ordinal);
+        std::lock_guard<std::mutex> g(c->lock);
+        cudaStream_t s = c->stream;
         void *codes = nullptr;
         TRY_CUDA(device_malloc(&codes, code_bytes), "codes for buffer_quantize");
+        // Set before every launch, so no earlier run's value can be read.
+        volatile int32_t *word = c->bad_host;
+        *word = INT32_MAX;
         float *ranges_dev = nullptr;
         int32_t rc = TURBO_OK;
         if (quantization == TURBO_QUANTIZE_INT8) {
             const uint64_t rb = (uint64_t)dim * 2 * 4;
-            const cudaError_t ae = device_malloc(reinterpret_cast<void **>(&ranges_dev), rb);
-            if (ae != cudaSuccess) {
-                cudaFree(codes);
-                return cuda_failed(err, ae, "int8_ranges for buffer_quantize");
+            cudaError_t e = device_malloc(reinterpret_cast<void **>(&ranges_dev), rb);
+            if (e != cudaSuccess) {
+                rc = cuda_failed(err, e, "int8_ranges for buffer_quantize");
+            } else if ((e = cudaMemcpyAsync(ranges_dev, int8_ranges, rb, cudaMemcpyHostToDevice, s)) != cudaSuccess) {
+                rc = cuda_failed(err, e, "copying int8_ranges to the device");
+            } else {
+                sent = rb;
+                e = quantize_int8(s, static_cast<const float *>(b->ptr), ranges_dev, (int)rows, (int)dim,
+                                  static_cast<int8_t *>(codes), c->bad);
+                if (e != cudaSuccess) rc = cuda_failed(err, e, "quantize_int8");
             }
-            const cudaError_t ce =
-                cudaMemcpyAsync(ranges_dev, int8_ranges, rb, cudaMemcpyHostToDevice, s);
-            if (ce != cudaSuccess) {
-                cudaFree(ranges_dev);
-                cudaFree(codes);
-                return cuda_failed(err, ce, "copying int8_ranges to the device");
-            }
-            sent = rb;
-            const cudaError_t qe = quantize_int8(s, static_cast<const float *>(b->ptr), ranges_dev, (int)rows,
-                                                 (int)dim, static_cast<int8_t *>(codes));
-            if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_int8");
         } else {
-            const cudaError_t qe =
-                quantize_ubinary(s, static_cast<const float *>(b->ptr), (int)rows, (int)dim, static_cast<uint8_t *>(codes));
-            if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_ubinary");
+            const cudaError_t e = quantize_ubinary(s, static_cast<const float *>(b->ptr), (int)rows, (int)dim,
+                                                   static_cast<uint8_t *>(codes), c->bad);
+            if (e != cudaSuccess) rc = cuda_failed(err, e, "quantize_ubinary");
         }
         if (rc == TURBO_OK) {
-            const cudaError_t ce = cudaMemcpyAsync(b->ptr, codes, code_bytes, cudaMemcpyDeviceToDevice, s);
+            cudaError_t e = cudaMemcpyAsync(b->ptr, codes, code_bytes, cudaMemcpyDeviceToDevice, s);
             const cudaError_t done = cudaStreamSynchronize(s);
-            if (ce != cudaSuccess) rc = cuda_failed(err, ce, "copying codes into the output buffer");
+            if (e != cudaSuccess) rc = cuda_failed(err, e, "copying codes into the output buffer");
             else if (done != cudaSuccess) rc = cuda_failed(err, done, "copying codes into the output buffer");
         } else {
             (void)cudaStreamSynchronize(s);
         }
+        const int32_t at = *word;
+        *word = INT32_MAX;
+        if (rc == TURBO_OK && at != INT32_MAX)
+            rc = refuse(err, TURBO_E_INTERNAL,
+                        "the model's output for row %u is not finite at dimension %u: the run is broken",
+                        (uint32_t)at / dim, (uint32_t)at % dim);
         if (ranges_dev) cudaFree(ranges_dev);
         cudaFree(codes);
         return rc;
@@ -3858,9 +3882,9 @@ int32_t turbo_cuda_quantize(uint32_t ordinal, uint32_t quantization, const float
             e = cudaMemcpy(dr, ranges, (size_t)dim * 2 * 4, cudaMemcpyHostToDevice);
         if (e == cudaSuccess) {
             if (quantization == TURBO_QUANTIZE_INT8)
-                e = quantize_int8(nullptr, dx, dr, rows, dim, static_cast<int8_t *>(dc));
+                e = quantize_int8(nullptr, dx, dr, rows, dim, static_cast<int8_t *>(dc), nullptr);
             else
-                e = quantize_ubinary(nullptr, dx, rows, dim, static_cast<uint8_t *>(dc));
+                e = quantize_ubinary(nullptr, dx, rows, dim, static_cast<uint8_t *>(dc), nullptr);
         }
         if (e == cudaSuccess) e = cudaDeviceSynchronize();
         if (e == cudaSuccess) e = cudaMemcpy(out, dc, code_bytes, cudaMemcpyDeviceToHost);

@@ -5,13 +5,16 @@ use std::ptr;
 
 use super::*;
 use crate::backend::turbo_backend_run;
-use crate::status::INVALID_ARGUMENT;
+use crate::status::{INTERNAL, INVALID_ARGUMENT};
 use crate::{TURBO_PLACE_DEVICE, TURBO_PLACE_SHARED, TURBO_QUANTIZE_INT8, TURBO_QUANTIZE_UBINARY, turbo_error};
 
 /// Quantize the first `rows * dim` F32 values of `buf` into codes at the
-/// start of the same buffer. Codes match `core/src/quantize.rs`. When
-/// `run` is not null the device memory taken here and the int8 ranges sent
-/// to the device are added to it.
+/// start of the same buffer. Codes match `core/src/quantize.rs`. A value
+/// that is NaN or infinite is refused INTERNAL, naming a row and dimension
+/// that hold one (#2517): the kernels store its index straight into the
+/// context's check word, which is pinned host memory, so nothing is copied
+/// back for it. When `run` is not null the device memory taken here and the
+/// int8 ranges sent to the device are added to it.
 ///
 /// # Safety
 /// `buf` is a buffer this backend gave; `int8_ranges` is null or `2 * dim`
@@ -54,11 +57,17 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
                     format!("buffer of {} bytes is under the {floats} F32 values to quantize", b.bytes),
                 ));
             }
+            if floats > i32::MAX as u64 {
+                return Err(fail(INVALID_ARGUMENT, format!("{floats} F32 values to quantize is over 2^31 - 1")));
+            }
             let c = &*b.ctx;
             let codes = c.alloc_device(code_bytes as usize)?;
             let mut ranges_pin = std::ptr::null_mut();
+            let word = c.bad.cast::<i32>();
             let result = (|| {
                 let mut q = c.lock_queue()?;
+                // Set before every launch, so no earlier run's value is read.
+                word.write_volatile(i32::MAX);
                 let slots;
                 let args: &[Arg] = if quantization == TURBO_QUANTIZE_INT8 {
                     let rb = dim as usize * 2 * 4;
@@ -71,6 +80,7 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
                         Arg::Ptr(codes as u64),
                         Arg::I32(rows as i32),
                         Arg::I32(dim as i32),
+                        Arg::Ptr(word as u64),
                     ];
                     &slots
                 } else {
@@ -79,17 +89,32 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
                         Arg::Ptr(codes as u64),
                         Arg::I32(rows as i32),
                         Arg::I32(dim as i32),
+                        Arg::Ptr(word as u64),
                         Arg::I32(0),
                     ];
-                    &slots[..4]
+                    &slots[..5]
                 };
                 let name = if quantization == TURBO_QUANTIZE_INT8 { "quantize_int8" } else { "quantize_ubinary" };
                 let k = c.kernel(name, [256, 1, 1])?;
                 let n = if quantization == TURBO_QUANTIZE_INT8 { floats } else { code_bytes }.max(1);
                 let groups = [n.div_ceil(256) as u32, 1, 1];
                 k.launch(c, &mut q, name, args, groups)?;
-                c.copy(&mut q, b.ptr, codes, code_bytes as usize)?;
-                c.sync(&mut q)
+                let done = c.copy(&mut q, b.ptr, codes, code_bytes as usize).and_then(|()| c.sync(&mut q));
+                if done.is_err() {
+                    // The kernel may still be running: wait for it before
+                    // the memory it writes goes back.
+                    let _ = c.sync(&mut q);
+                }
+                done?;
+                let at = word.read_volatile();
+                if at == i32::MAX {
+                    return Ok(());
+                }
+                let (row, d) = (at as u32 / dim, at as u32 % dim);
+                Err(fail(
+                    INTERNAL,
+                    format!("the model's output for row {row} is not finite at dimension {d}: the run is broken"),
+                ))
             })();
             if !ranges_pin.is_null() {
                 c.free(ranges_pin, "int8_ranges for buffer_quantize");

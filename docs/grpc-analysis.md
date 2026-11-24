@@ -1400,7 +1400,23 @@ its id:
   `[2, width]` row-major, width the document's `output_dim` or the
   model's `dim`; another length is the document's
   `TURBO_E_INVALID_ARGUMENT` naming field 8, and documents batch together
-  only under the same table. A `quantization` other than 0 or
+  only under the same table. `tokens` (`InputTokens`, issue #2511)
+  says how much of the text the vector read: `kept` tokens went into
+  the model, `seen` is how many the whole text has (absent when the
+  text was cut by characters before tokenizing, so its full count is
+  unknown), and `truncated` is set when `kept` is less than the text.
+  A vector of a cut text never passes for the whole text's. `kept` 0
+  is a text that gave no tokens, which a static model answers with the
+  zero vector (issue #2517). A float row holding a NaN or an infinity
+  is never sent, under any output: the core refuses an embed run whose
+  vectors are not finite (`turbo_session_run`, which also refuses INT8 or
+  UBINARY codes of such vectors, made on the host or, on CUDA and Level
+  Zero, on the device, and `turbo_result_read`),
+  so that document answers `AnalyzeFailure` with `TURBO_E_INTERNAL` for
+  pooled, token, and multi-resolution vectors alike, and the others in
+  its batch are unaffected. `AnalyzeQuery` fails the call with
+  `TURBO_E_INTERNAL`, and `AnalyzeDocumentProgressive` reports the
+  vector step's `AnalysisStepFailure` with `TURBO_E_INTERNAL`. A `quantization` other than 0 or
   `TURBO_QUANTIZE_NONE` with a sparse-terms, token-vectors, or
   document-graph `output`
   is `TURBO_E_UNSUPPORTED_OPTION` naming field 7, as is a codes output
@@ -1416,7 +1432,8 @@ its id:
   pooled vector's codes as their own outcome: the same bytes
   `AnalyzeVectors` carries under `TURBO_QUANTIZE_INT8` (with the
   document's `int8_ranges` table) or `TURBO_QUANTIZE_UBINARY`, so a
-  client asks for codes without asking for vectors;
+  client asks for codes without asking for vectors, with the same
+  `tokens` as `AnalyzeVectors`;
 - `DocumentGraphResponse` (`ANALYZE_OUTPUT_DOCUMENT_GRAPH`, field 8,
   issue #2013), the exported document graph with its `layers` (carrying
   `ModelRef { id: artifact_id, revision: format_id, sha256 }` on any

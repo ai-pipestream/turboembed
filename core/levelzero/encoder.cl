@@ -2000,10 +2000,18 @@ float divide_rn(float a, float b) {
 
 /* int8 and ubinary codes, bit for bit with core/src/quantize.rs. out is a
  * separate buffer so the write never races the read of x. */
+/* The quantize kernels store the flat index of a value that is NaN or
+ * infinite in *bad, a word of host memory the host sets to INT_MAX before
+ * each run, so a run of finite values sends nothing back: a broken run is
+ * refused, never coded (#2517). isfinite, as lstm_step uses: these
+ * kernels build with no fast-math flag. */
+static inline bool not_finite(float v) { return !isfinite(v); }
+
 __kernel void quantize_int8(__global const float *x, __global const float *ranges, __global char *out, int rows,
-                            int dim) {
+                            int dim, __global int *bad) {
     const size_t n = (size_t)rows * (size_t)dim;
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
+        if (not_finite(x[i])) *bad = (int)i;
         const int d = (int)(i % (size_t)dim);
         const float lo = ranges[d];
         const float hi = ranges[(size_t)dim + (size_t)d];
@@ -2016,7 +2024,7 @@ __kernel void quantize_int8(__global const float *x, __global const float *range
     }
 }
 
-__kernel void quantize_ubinary(__global const float *x, __global uchar *out, int rows, int dim) {
+__kernel void quantize_ubinary(__global const float *x, __global uchar *out, int rows, int dim, __global int *bad) {
     const int row_bytes = (dim + 7) / 8;
     const size_t n = (size_t)rows * (size_t)row_bytes;
     for (size_t bi = get_global_id(0); bi < n; bi += get_global_size(0)) {
@@ -2027,7 +2035,9 @@ __kernel void quantize_ubinary(__global const float *x, __global uchar *out, int
         uchar byte = 0;
         for (int i = 0; i < 8; i++) {
             const int d = base + i;
-            if (d < dim && row[d] > 0.0f) byte = (uchar)(byte | (0x80u >> i));
+            if (d >= dim) break;
+            if (not_finite(row[d])) *bad = r * dim + d;
+            if (row[d] > 0.0f) byte = (uchar)(byte | (0x80u >> i));
         }
         out[bi] = byte;
     }

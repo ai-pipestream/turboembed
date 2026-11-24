@@ -174,6 +174,14 @@ sentence-transformers' `quantize_embeddings` makes
   `h2d_bytes` include the int8 ranges sent to the device; otherwise the core copies the vectors back as F32 first
   and quantizes on the host. Either path yields the same codes for the
   same f32 vectors (`core/src/quantize.rs`).
+- A run whose vectors hold a NaN or an infinity is refused
+  `TURBO_E_INTERNAL`, naming a row and dimension that hold one, at every
+  quantization, never coded (#2517). The core checks vectors it sees on
+  the host (host and shared results, and device results it reads back)
+  and names the first; CUDA's and Level Zero's quantize kernels check
+  device vectors as they code them, storing a bad value's index in a word
+  of pinned host memory the context keeps, so nothing is added to
+  `d2h_bytes` or `h2d_bytes`.
 
 ```mermaid
 sequenceDiagram
