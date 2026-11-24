@@ -10,7 +10,6 @@ pub mod catalog;
 mod ceiling;
 pub mod config;
 pub mod deadline;
-mod finite;
 pub mod format;
 mod health;
 mod infer;

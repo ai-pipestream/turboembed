@@ -1420,7 +1420,8 @@ its id:
   is a text that gave no tokens, which a static model answers with the
   zero vector (issue #2517). A float row holding a NaN or an infinity
   is never sent, under any output: the core refuses an embed run whose
-  vectors are not finite (`turbo_session_run` and `turbo_result_read`),
+  vectors are not finite (`turbo_session_run`, which checks a device's
+  values read back for INT8 or UBINARY codes too, and `turbo_result_read`),
   so that document answers `AnalyzeFailure` with `TURBO_E_INTERNAL` for
   pooled, token, and multi-resolution vectors alike, and the others in
   its batch are unaffected. `AnalyzeQuery` fails the call with
