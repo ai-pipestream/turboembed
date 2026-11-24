@@ -578,9 +578,9 @@ cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst
  * core/src/quantize.rs bit for bit. ranges is [2, dim] (mins then maxes)
  * for int8; out holds rows * dim int8 bytes or rows * ceil(dim/8) ubinary
  * bytes. */
-/* bad is NULL or a device int32 the caller keeps at INT32_MAX: the flat
- * index of the first value of x that is NaN or infinite is kept there, as
- * an atomic minimum. */
+/* bad is NULL or an int32 the device can write (pinned host memory) that
+ * the caller sets to INT32_MAX: the flat index of a value of x that is NaN
+ * or infinite is stored there. */
 cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out,
                           int32_t *bad);
 cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out, int32_t *bad);

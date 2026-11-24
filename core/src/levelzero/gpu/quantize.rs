@@ -10,11 +10,11 @@ use crate::{TURBO_PLACE_DEVICE, TURBO_PLACE_SHARED, TURBO_QUANTIZE_INT8, TURBO_Q
 
 /// Quantize the first `rows * dim` F32 values of `buf` into codes at the
 /// start of the same buffer. Codes match `core/src/quantize.rs`. A value
-/// that is NaN or infinite is refused INTERNAL, naming its row and
-/// dimension (#2517): the kernels mark the first in the context's check
-/// word, read back with the codes. When `run` is not null the device memory
-/// taken here and the int8 ranges sent to the device are added to it, and
-/// the check word's 4 bytes to its d2h_bytes.
+/// that is NaN or infinite is refused INTERNAL, naming a row and dimension
+/// that hold one (#2517): the kernels store its index straight into the
+/// context's check word, which is pinned host memory, so nothing is copied
+/// back for it. When `run` is not null the device memory taken here and the
+/// int8 ranges sent to the device are added to it.
 ///
 /// # Safety
 /// `buf` is a buffer this backend gave; `int8_ranges` is null or `2 * dim`
@@ -30,7 +30,7 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
 ) -> i32 {
     unsafe {
         let device0 = device_allocs_here();
-        let (mut sent, mut fetched) = (0u64, 0u64);
+        let mut sent = 0u64;
         let rc = guarded(err, || {
             if rows == 0 || dim == 0 {
                 return Ok(());
@@ -63,8 +63,11 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
             let c = &*b.ctx;
             let codes = c.alloc_device(code_bytes as usize)?;
             let mut ranges_pin = std::ptr::null_mut();
+            let word = c.bad.cast::<i32>();
             let result = (|| {
                 let mut q = c.lock_queue()?;
+                // Set before every launch, so no earlier run's value is read.
+                word.write_volatile(i32::MAX);
                 let slots;
                 let args: &[Arg] = if quantization == TURBO_QUANTIZE_INT8 {
                     let rb = dim as usize * 2 * 4;
@@ -77,7 +80,7 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
                         Arg::Ptr(codes as u64),
                         Arg::I32(rows as i32),
                         Arg::I32(dim as i32),
-                        Arg::Ptr(c.bad as u64),
+                        Arg::Ptr(word as u64),
                     ];
                     &slots
                 } else {
@@ -86,7 +89,7 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
                         Arg::Ptr(codes as u64),
                         Arg::I32(rows as i32),
                         Arg::I32(dim as i32),
-                        Arg::Ptr(c.bad as u64),
+                        Arg::Ptr(word as u64),
                         Arg::I32(0),
                     ];
                     &slots[..5]
@@ -96,18 +99,17 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
                 let n = if quantization == TURBO_QUANTIZE_INT8 { floats } else { code_bytes }.max(1);
                 let groups = [n.div_ceil(256) as u32, 1, 1];
                 k.launch(c, &mut q, name, args, groups)?;
-                c.copy(&mut q, b.ptr, codes, code_bytes as usize)?;
-                c.copy(&mut q, c.bad_host, c.bad, 4)?;
-                c.sync(&mut q)?;
-                fetched = 4;
-                let at = c.bad_host.cast::<i32>().read();
+                let done = c.copy(&mut q, b.ptr, codes, code_bytes as usize).and_then(|()| c.sync(&mut q));
+                if done.is_err() {
+                    // The kernel may still be running: wait for it before
+                    // the memory it writes goes back.
+                    let _ = c.sync(&mut q);
+                }
+                done?;
+                let at = word.read_volatile();
                 if at == i32::MAX {
                     return Ok(());
                 }
-                // Back to i32::MAX for the context's next run.
-                c.bad_host.cast::<i32>().write(i32::MAX);
-                c.copy(&mut q, c.bad, c.bad_host, 4)?;
-                c.sync(&mut q)?;
                 let (row, d) = (at as u32 / dim, at as u32 % dim);
                 Err(fail(
                     INTERNAL,
@@ -124,7 +126,6 @@ pub(crate) unsafe extern "C" fn buffer_quantize(
             run.device_allocs += device_allocs_here() - device0;
             if rc == 0 {
                 run.h2d_bytes += sent;
-                run.d2h_bytes += fetched;
             }
         }
         rc

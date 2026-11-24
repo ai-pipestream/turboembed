@@ -4741,17 +4741,17 @@ cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst
  * with 0. */
 
 /* Whether a value is NaN or infinite, by its exponent bits, so no math
- * flag can fold the test away. With bad set, the quantize kernels keep the
- * flat index of the first such value in *bad, an atomic minimum the host
- * keeps at INT32_MAX between runs: a broken run is refused, never coded
- * (#2517). */
+ * flag can fold the test away. With bad set, the quantize kernels store
+ * the flat index of such a value in *bad, a word of pinned host memory the
+ * host sets to INT32_MAX before each run, so a run of finite values sends
+ * nothing back: a broken run is refused, never coded (#2517). */
 __device__ inline bool not_finite(float v) { return (__float_as_uint(v) & 0x7f800000u) == 0x7f800000u; }
 
 __global__ void quantize_int8_kernel(const float *x, const float *ranges, int rows, int dim, int8_t *out,
                                      int32_t *bad) {
     const size_t n = (size_t)rows * (size_t)dim;
     for (size_t i = (size_t)blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x) {
-        if (bad && not_finite(x[i])) atomicMin(bad, (int32_t)i);
+        if (bad && not_finite(x[i])) *bad = (int32_t)i;
         const int d = (int)(i % (size_t)dim);
         const float lo = ranges[d];
         const float hi = ranges[(size_t)dim + (size_t)d];
@@ -4776,7 +4776,7 @@ __global__ void quantize_ubinary_kernel(const float *x, int rows, int dim, uint8
         for (int i = 0; i < 8; i++) {
             const int d = base + i;
             if (d >= dim) break;
-            if (bad && not_finite(row[d])) atomicMin(bad, (int32_t)((size_t)r * (size_t)dim + (size_t)d));
+            if (bad && not_finite(row[d])) *bad = (int32_t)((size_t)r * (size_t)dim + (size_t)d);
             if (row[d] > 0.0f) byte = (uint8_t)(byte | (0x80u >> i));
         }
         out[bi] = byte;

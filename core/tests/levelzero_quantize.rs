@@ -113,7 +113,7 @@ fn levelzero_codes_match_host_byte_for_byte() {
             let mut got = vec![0u8; want.len()];
             let done = quantize_via_table(b, code, &x, &ranges, dim, &mut got);
             // A value that is NaN or infinite is a broken run: refused,
-            // naming the first one, never coded (#2517).
+            // naming it (each case holds one), never coded (#2517).
             if let Some(at) = x.iter().position(|v| !v.is_finite()) {
                 let e = done.err().unwrap_or_else(|| panic!("{what}: a value that is not finite was coded"));
                 assert_eq!(e.code, turbo::status::INTERNAL, "{what}: {e:?}");
@@ -124,12 +124,13 @@ fn levelzero_codes_match_host_byte_for_byte() {
             let run = done.unwrap_or_else(|e| panic!("{what}: {e:?}"));
             assert_eq!(got, want, "{what}");
             // The codes buffer, and for int8 the pinned ranges, which are
-            // the only bytes sent; the context's check word (#2517) is the
-            // only bytes read back, and nothing is made on the host.
+            // the only bytes sent; the kernels write the context's check
+            // word (#2517) in host memory, so nothing is read back, and
+            // nothing is made on the host.
             let int8 = q == Quantization::Int8;
             assert_eq!(run.device_allocs, if int8 { 2 } else { 1 }, "{what}: device_allocs");
             assert_eq!(run.h2d_bytes, if int8 { (2 * dim * 4) as u64 } else { 0 }, "{what}: h2d_bytes");
-            assert_eq!((run.host_allocs, run.d2h_bytes), (0, 4), "{what}: host_allocs and d2h_bytes");
+            assert_eq!((run.host_allocs, run.d2h_bytes), (0, 0), "{what}: host_allocs and d2h_bytes");
         }
     }
 }
