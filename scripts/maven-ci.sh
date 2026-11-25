@@ -5,6 +5,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# maven-dependency-plugin by full coordinates. A bare `dependency:` prefix
+# makes Maven read plugin-group metadata from Central to find the plugin
+# and its latest version, on every run and with a warm cache too. Pinned,
+# a warm run reads nothing from Central. 3.9.0 is the version
+# analysis/goldens-tool/java/pom.xml pins.
+DEPENDENCY_PLUGIN="org.apache.maven.plugins:maven-dependency-plugin:3.9.0"
+
 resolve() {
   local attempts="${MAVEN_RESOLVE_ATTEMPTS:-3}"
   if [[ ! "$attempts" =~ ^[1-9][0-9]*$ ]]; then
@@ -22,8 +29,8 @@ resolve() {
   log="$(mktemp)"
   while true; do
     local statuses=(0 0)
-    mvn -B -ntp -U -Daether.updateCheckManager.sessionState=bypass -DskipTests \
-      "$@" dependency:go-offline dependency:get \
+    mvn -B -ntp -DskipTests \
+      "$@" "$DEPENDENCY_PLUGIN:go-offline" "$DEPENDENCY_PLUGIN:get" \
       -Dartifact="org.apache.maven.surefire:surefire-junit-platform:$surefire_version" \
       package 2>&1 | tee "$log" || statuses=("${PIPESTATUS[@]}")
     if ((statuses[0] == 0 && statuses[1] == 0)); then
@@ -43,6 +50,11 @@ resolve() {
       rm -f "$log"
       return 1
     fi
+    # The miss is recorded in the local repository, and Maven would not
+    # ask for it again until its update interval passes. Removing the
+    # record makes the next attempt ask again for what failed, and only
+    # for that: nothing already resolved is checked again.
+    clean_cache >/dev/null
     local delay=$((attempt * 5))
     echo "Maven dependency resolution failed; retrying in $delay seconds (attempt $((attempt + 1))/$attempts)" >&2
     sleep "$delay"
@@ -50,12 +62,16 @@ resolve() {
   done
 }
 
+# Removes the records of failed transfers: `*.lastUpdated` for artifacts,
+# and `resolver-status.properties`, where Maven 3.9 records failed
+# metadata reads. Both only say when a remote was last asked; deleting
+# one never deletes an artifact or its metadata.
 clean_cache() {
   local repository="${MAVEN_REPO_LOCAL:-$HOME/.m2/repository}"
   if [[ ! -d "$repository" ]]; then
     return 0
   fi
-  find "$repository" -type f -name '*.lastUpdated' -print -delete
+  find "$repository" -type f \( -name '*.lastUpdated' -o -name 'resolver-status.properties' \) -print -delete
 }
 
 case "${1:-}" in
@@ -71,8 +87,11 @@ case "${1:-}" in
     fi
     clean_cache
     ;;
+  dependency-plugin)
+    echo "$DEPENDENCY_PLUGIN"
+    ;;
   *)
-    echo "usage: $0 resolve [Maven project arguments...] | clean-cache" >&2
+    echo "usage: $0 resolve [Maven project arguments...] | clean-cache | dependency-plugin" >&2
     exit 2
     ;;
 esac

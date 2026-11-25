@@ -60,7 +60,7 @@ bash "$ROOT/scripts/maven-ci.sh" resolve \
 mvn -B -ntp -o -f "$JAVA_BUILD_DIR/pom.xml" \
   -Dproto.source.dir="$ROOT/server/proto" \
   -Dlicense.source.dir="$ROOT" \
-  dependency:build-classpath -DincludeScope=test -Dmdep.outputFile="$WORK_DIR/java-runtime.cp"
+  "$(bash "$ROOT/scripts/maven-ci.sh" dependency-plugin):build-classpath" -DincludeScope=test -Dmdep.outputFile="$WORK_DIR/java-runtime.cp"
 
 JAR_NAME="turboembed-grpc-${VERSION}.jar"
 SOURCES_JAR_NAME="turboembed-grpc-${VERSION}-sources.jar"
