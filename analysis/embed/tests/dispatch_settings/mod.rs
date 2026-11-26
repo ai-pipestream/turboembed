@@ -6,6 +6,13 @@ pub(super) fn inputs<'a>(
     let device = device.filter(|value| !value.trim().is_empty());
     let bundle = bundle.filter(|value| !value.trim().is_empty());
     turbo_pins::check_test_device(device, required)?;
+    if let Some(name) = device
+        && let Some((backend, _)) = name.split_once(':')
+    {
+        return Err(format!(
+            "TURBO_TEST_DEVICE={name}: the dispatch test picks a backend's first device ({backend}) or a device index"
+        ));
+    }
     if let Some(backend) = required
         && bundle.is_none()
     {
@@ -44,6 +51,22 @@ mod tests {
             );
         }
         assert_eq!(inputs(Some("bundle"), Some("hailo"), Some("hailo")).unwrap(), Some(("bundle", "hailo")));
+    }
+
+    #[test]
+    fn a_backend_with_a_number_is_refused_before_any_timing() {
+        for (device, required) in [("levelzero:0", None), ("hailo:0", Some("hailo")), ("hailo:1", None)] {
+            let backend = device.split(':').next().unwrap();
+            assert_eq!(
+                inputs(Some("bundle"), Some(device), required).unwrap_err(),
+                format!(
+                    "TURBO_TEST_DEVICE={device}: the dispatch test picks a backend's first device ({backend}) or a device index"
+                )
+            );
+        }
+        assert!(
+            inputs(Some("bundle"), Some("levelzero:0"), Some("hailo")).unwrap_err().contains("requires a hailo device")
+        );
     }
 
     #[test]
