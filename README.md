@@ -333,12 +333,17 @@ each with its SHA-256 sum ([release.md](docs/release.md),
 
 | Archive | Backends | Contents |
 |---|---|---|
-| `linux-x86_64.tar.gz` | CPU and CUDA | `lib/libturbo.so`, `bin/turbo-kserve`, the C headers |
+| `linux-x86_64.tar.gz` | CPU, CUDA and NPU | `lib/libturbo.so`, `bin/turbo-kserve`, the C headers |
 | `macos-arm64.tar.gz` | Metal and CPU | `lib/libturbo.dylib`, the C headers |
 | `linux-aarch64.tar.gz` | CPU | `lib/libturbo.so`, `bin/turbo-kserve`, the C headers |
-| `windows-x86_64.zip` | CPU, built with MSVC | `bin/turbo.dll`, `lib/turbo.lib`, `bin/turbo-kserve.exe`, the C headers |
+| `windows-x86_64.zip` | CPU and NPU, built with MSVC | `bin/turbo.dll`, `lib/turbo.lib`, `bin/turbo-kserve.exe`, the C headers |
 | `android.tar.gz` | CPU | `jniLibs/arm64-v8a/libturbo.so` and `jniLibs/x86_64/libturbo.so` for the JNI binding |
 | `turboembed-proto-v<version>.tar.gz` | none | the `server/proto/*.proto` definitions and `buf.yaml` |
+
+The NPU backend in the Linux x86_64 and Windows x86_64 archives opens the
+Level Zero loader at run time. A machine needs the Intel NPU driver
+package, which installs the loader, to find a device; without it the
+archive still runs on CPU.
 
 The release also carries the generated Java gRPC stubs
 (`ai.pipestream:turboembed-grpc`, a jar, sources jar and pom) and the

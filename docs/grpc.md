@@ -28,8 +28,10 @@ bundle at the same tier (docs/conformance.md).
 
 ## Getting it
 
-The Linux release archive (docs/release.md) carries `bin/turbo-kserve`,
-built with the cpu and cuda backends. From the tree:
+The Linux x86_64 release archive (docs/release.md) carries
+`bin/turbo-kserve`, built with the cpu, cuda and npu backends. The
+Windows x86_64 archive carries `bin/turbo-kserve.exe` with the cpu and
+npu backends. From the tree:
 
 ```
 cargo build --release -p turbo-kserve                    # cpu

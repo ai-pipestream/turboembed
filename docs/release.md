@@ -5,12 +5,12 @@ and generated Java and Python client stub artifacts through
 `.github/workflows/release.yml` and publishes them as one GitHub release,
 each with its SHA-256:
 
-- `turboembed-v<version>-linux-x86_64.tar.gz`: the cpu and cuda backends.
+- `turboembed-v<version>-linux-x86_64.tar.gz`: the cpu, cuda and npu backends.
 - `turboembed-v<version>-macos-arm64.tar.gz`: the metal and cpu backends,
   for Apple silicon.
 - `turboembed-v<version>-linux-aarch64.tar.gz`: the cpu backend.
-- `turboembed-v<version>-windows-x86_64.zip`: the cpu backend, built with
-  MSVC.
+- `turboembed-v<version>-windows-x86_64.zip`: the cpu and npu backends, built
+  with MSVC.
 - `turboembed-v<version>-android.tar.gz`: the cpu backend as
   `jniLibs/arm64-v8a/libturbo.so` and `jniLibs/x86_64/libturbo.so`, built
   with the Android NDK at API level 26, for the JNI binding
@@ -83,7 +83,7 @@ not published.
 ## What the Linux archive holds
 
 ```
-lib/libturbo.so            the library: the cpu and cuda backends
+lib/libturbo.so            the library: the cpu, cuda and npu backends
 bin/turbo-kserve           the gRPC server (docs/grpc.md), the same backends linked in
 include/turbo/turbo.h      the C interface; the design
 include/turbo/turbo_backend.h
@@ -102,6 +102,12 @@ machine without a driver, or without an NVIDIA GPU, lists no CUDA device
 and runs everything else as usual. The driver must support the CUDA
 version the archive's `BUILD` line names; a 12.x build needs a 525
 driver or newer.
+
+The npu backend opens the Level Zero loader (`libze_loader.so.1`) at
+run time, so a machine needs Intel's NPU driver package (which installs
+the loader) to find a device (docs/npu.md). A machine without the
+loader lists no npu device and keeps working on cpu, and on cuda when
+a driver is there.
 
 The CUDA machine code the archive carries is what `BUILD` lists, one
 architecture per NVIDIA generation from Turing (sm_75) up, and the PTX of
@@ -153,8 +159,8 @@ machine with an accelerator builds the backend it has from the tree
 ## What the Windows archive holds
 
 ```
-bin/turbo.dll              the library: the cpu backend
-bin/turbo-kserve.exe       the gRPC server (docs/grpc.md), the same backend linked in
+bin/turbo.dll              the library: the cpu and npu backends
+bin/turbo-kserve.exe       the gRPC server (docs/grpc.md), the same backends linked in
 lib/turbo.lib              turbo.dll's import library, for the MSVC linker
 include/turbo/turbo.h      the C interface; the design
 include/turbo/turbo_backend.h
@@ -165,9 +171,14 @@ README.md                  this file
 ```
 
 `turbo.dll` links the C runtime dynamically: a machine needs the Visual
-C++ redistributable (2015 or later), which most already have. The
-workflow checks that the DLL loads and lists the cpu backend in
-`turbo_version()`, and that the server starts and parses its arguments.
+C++ redistributable (2015 or later), which most already have. The npu
+backend opens `ze_loader.dll` at run time, so a machine needs Intel's
+NPU driver package (which installs the loader) to find a device
+(docs/npu.md). A machine without the loader lists no npu device and
+keeps working on cpu. The workflow checks that the DLL loads and lists
+the npu and cpu backends in `turbo_version()`, and that the server
+starts and parses its arguments, including on a runner with no Intel
+driver.
 
 ## Images
 
@@ -185,6 +196,15 @@ toolkit and architectures of the Linux archive and, like it, links the
 CUDA runtime statically: the host needs the NVIDIA driver and the NVIDIA
 container toolkit, nothing in the image; without a GPU it runs the cpu
 backend.
+
+The cpu image does not carry the npu backend. npu is compiled into the
+Windows and Linux x86_64 archives, where the host already has or can
+install Intel's NPU driver package. Putting npu in the cpu image would
+need the Level Zero loader in the image to be useful. The cpu image is
+also built for arm64, where this backend does not apply, and device
+access for the Intel NPU is not a path the image documents. A container
+that needs the npu backend builds from the tree with `--features npu`
+and provides the loader and device on the host.
 
 The image holds no model. It runs as user 10001, listens on
 `0.0.0.0:8081`, and serves every bundle directory under `/bundles`, a
@@ -259,11 +279,14 @@ backend only: the runners have no GPU.
 
 ## What a release claims
 
-A release is built and packaged on runners that run nothing on a GPU.
-The workflow checks that each library builds, that the Linux one links
-no CUDA library dynamically, that the macOS one links only system
-libraries and lists the metal backend in `turbo_version()`, and that the
-header compiles as C11 and C++17.
+A release is built and packaged on runners that run nothing on a GPU
+or an NPU. The workflow checks that each library builds, that the Linux
+x86_64 one links no CUDA or Level Zero library dynamically and lists
+the cuda and npu backends in `turbo_version()`, that the macOS one
+links only system libraries and lists the metal backend in
+`turbo_version()`, that the Windows one lists the npu and cpu backends
+in `turbo_version()` and still loads without Intel's driver, and that
+the header compiles as C11 and C++17.
 
 What runs, and how fast, is what the records under `benchmarks/records/`
 say, each from a named machine at a named commit, measured by
@@ -286,7 +309,8 @@ their cells say EXPERIMENTAL until a record names them.
 ## Other platforms
 
 The archives are Linux x86_64 and aarch64, macOS arm64 and Windows
-x86_64; only the first and third carry an accelerator backend. A Jetson
+x86_64. Linux x86_64 carries the cuda and npu backends, macOS arm64 the
+metal backend, and Windows x86_64 the npu backend. A Jetson
 (aarch64 with JetPack's CUDA) or any other machine builds from the tree
 with the toolkit it has:
 
