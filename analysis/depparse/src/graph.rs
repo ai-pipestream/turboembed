@@ -81,10 +81,11 @@ pub struct DependencyGraph<A: WordOrTokenAnchor = Tokens> {
     layer: Dependencies<A>,
     children: Vec<Vec<Ix<A>>>,
     roots: Vec<Ix<A>>,
-    /// Depth and root of every node, built on the first path query:
-    /// most graphs are never asked for a path (the parser builds one
-    /// per sentence), so construction does not pay for the tables.
-    tables: OnceLock<(Vec<u32>, Vec<u32>)>,
+    /// Depth and root of every node as one boxed slice of pairs, built
+    /// on the first path query: most graphs are never asked for a path
+    /// (the parser builds one per sentence), so construction does not
+    /// pay for the tables, and the field stays one word until then.
+    tables: OnceLock<Box<[(u32, u32)]>>,
     pub(crate) label_encoding: crate::LabelEncoding,
 }
 impl<A: WordOrTokenAnchor> Clone for DependencyGraph<A> {
@@ -155,27 +156,25 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
     }
 
     /// The depth and root tables, built once on first use.
-    fn tables(&self) -> &(Vec<u32>, Vec<u32>) {
+    fn tables(&self) -> &[(u32, u32)] {
         let (roots, children) = (&self.roots, &self.children);
         self.tables.get_or_init(|| {
             let n = children.len();
-            let mut depth = vec![0u32; n];
-            let mut root_of = vec![0u32; n];
+            let mut tables = vec![(0u32, 0u32); n];
             let mut stack = Vec::new();
             for &root in roots {
                 let root_id = root.get() as u32;
-                root_of[root.get()] = root_id;
+                tables[root.get()].1 = root_id;
                 stack.push(root);
                 while let Some(u) = stack.pop() {
-                    let next_depth = depth[u.get()] + 1;
+                    let next_depth = tables[u.get()].0 + 1;
                     for &child in &children[u.get()] {
-                        depth[child.get()] = next_depth;
-                        root_of[child.get()] = root_id;
+                        tables[child.get()] = (next_depth, root_id);
                         stack.push(child);
                     }
                 }
             }
-            (depth, root_of)
+            tables.into_boxed_slice()
         })
     }
     pub fn to_layer(&self) -> Dependencies<A> {
@@ -315,13 +314,13 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
         if u.get() >= self.len() || v.get() >= self.len() {
             return Err(error("node out of range"));
         }
-        let (depth, root_of) = self.tables();
-        if root_of[u.get()] != root_of[v.get()] {
+        let tables = self.tables();
+        if tables[u.get()].1 != tables[v.get()].1 {
             return Ok(None);
         }
         let cap = max_len.unwrap_or(usize::MAX);
         let (mut a, mut b) = (u, v);
-        let (da, db) = (depth[a.get()], depth[b.get()]);
+        let (da, db) = (tables[a.get()].0, tables[b.get()].0);
         let mut steps = da.abs_diff(db) as usize;
         if steps > cap {
             return Ok(None);
@@ -363,9 +362,9 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
         let Some(lca) = self.lca_bounded(u, v, max_len, &mut arc_reads)? else {
             return Ok(PathSearch { found: false, arc_reads });
         };
-        let (depth, _) = self.tables();
-        let up_len = (depth[u.get()] - depth[lca.get()]) as usize;
-        let down_len = (depth[v.get()] - depth[lca.get()]) as usize;
+        let tables = self.tables();
+        let up_len = (tables[u.get()].0 - tables[lca.get()].0) as usize;
+        let down_len = (tables[v.get()].0 - tables[lca.get()].0) as usize;
         out.reserve(up_len + down_len);
         let mut n = u;
         while n != lca {
