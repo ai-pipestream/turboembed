@@ -4,6 +4,9 @@
 //! `TURBO_MINILM_BUNDLE` naming an all-MiniLM-L6-v2 bundle. Set
 //! `TURBO_ASPECT_OUT` to train and write the BIO and polarity heads, or
 //! `TURBO_ASPECT_HEAD` to evaluate two previously published `THEAD001` files.
+//! The ModernBERT receipt runs its encoder on the device `TURBO_TEST_DEVICE`
+//! names, and on the CPU when it names none; a `TURBO_TEST_REQUIRE_<BACKEND>`
+//! variable does not choose the device.
 
 mod aspect_masc_support;
 

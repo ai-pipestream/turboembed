@@ -1,5 +1,10 @@
-//! CPU and device (`TURBO_TEST_DEVICE` / `TURBO_TEST_REQUIRE_CUDA=1`)
-//! parity for `LabelCentroids` and `ClassifierHead` (#321).
+//! CPU and device parity for `LabelCentroids` and `ClassifierHead` (#321).
+//!
+//! The device is the one `TURBO_TEST_DEVICE` names, and the test says it
+//! was skipped when it names none. `TURBO_TEST_REQUIRE_CUDA`,
+//! `TURBO_TEST_REQUIRE_LEVELZERO` and `TURBO_TEST_REQUIRE_METAL` do not
+//! choose the device: set to anything but 0, the test fails unless
+//! `TURBO_TEST_DEVICE` names a device of that backend.
 
 mod heads_support;
 
@@ -14,17 +19,9 @@ use heads_support::*;
 
 #[test]
 fn heads_and_centroids_cpu_and_device_parity() {
-    let want = match std::env::var("TURBO_TEST_DEVICE") {
-        Ok(w) => w,
-        Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1") => "cuda".to_string(),
-        Err(_) => {
-            println!("skipped: neither TURBO_TEST_DEVICE nor TURBO_TEST_REQUIRE_CUDA=1 is set");
-            return;
-        }
-    };
-    let device = match want.parse() {
-        Ok(i) => Device::Index(i),
-        Err(_) => Device::Backend(want.clone()),
+    let Some((want, device)) = device::named_device() else {
+        println!("skipped: TURBO_TEST_DEVICE names no device");
+        return;
     };
     let (sub, cpu_vec) = open_cpu(64);
     let dev_opts = VectorOptions {
@@ -137,4 +134,23 @@ fn heads_and_centroids_cpu_and_device_parity() {
         assert!((a - b).abs() <= 1e-5, "head score diff: cpu={a} dev={b}");
     }
     println!("{exec:?}: CPU/device head and centroid scores match within 1e-5");
+}
+
+#[test]
+fn a_required_backend_does_not_choose_the_device() {
+    use heads_support::device::device_for;
+    // nothing required: the device that is named, or none
+    assert_eq!(device_for(None, None), Ok(None));
+    assert_eq!(device_for(Some("cpu"), None), Ok(Some(Device::Cpu)));
+    assert_eq!(device_for(Some("levelzero"), None), Ok(Some(Device::Backend("levelzero".into()))));
+    assert_eq!(device_for(Some("1"), None), Ok(Some(Device::Index(1))));
+    assert_eq!(device_for(Some("cuda"), Some("cuda")), Ok(Some(Device::Backend("cuda".into()))));
+    // a required backend with no name is not a device: the test fails
+    let unset = device_for(None, Some("cuda")).unwrap_err();
+    assert_eq!(unset, "TURBO_TEST_REQUIRE_CUDA requires a cuda device: set TURBO_TEST_DEVICE=cuda");
+    // and so do the CPU, another backend's device and an index
+    for other in ["cpu", "levelzero", "0"] {
+        let refused = device_for(Some(other), Some("cuda")).unwrap_err();
+        assert_eq!(refused, format!("TURBO_TEST_REQUIRE_CUDA requires a cuda device, and TURBO_TEST_DEVICE={other}"));
+    }
 }

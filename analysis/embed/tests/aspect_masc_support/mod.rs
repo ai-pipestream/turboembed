@@ -1,4 +1,6 @@
 mod corpus;
+#[path = "../heads_support/device.rs"]
+mod device;
 mod metrics;
 mod release;
 mod run;

@@ -10,6 +10,7 @@ use turbo_analysis::*;
 use turbo_analysis_embed::*;
 use turbo_analysis_layers::{Sentences, Vectors};
 
+pub mod device;
 pub mod masc_polarity;
 
 pub fn testdata() -> PathBuf {
