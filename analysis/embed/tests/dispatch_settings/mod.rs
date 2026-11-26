@@ -31,7 +31,8 @@ mod tests {
         let required = Some("hailo");
         for missing in [None, Some(""), Some(" ")] {
             assert!(inputs(Some("bundle"), missing, required).unwrap_err().contains("TURBO_TEST_DEVICE=hailo"));
-            assert!(inputs(missing, Some("hailo"), required).unwrap_err().contains("TURBO_TEST_VECTORS_BUNDLE"));
+            let no_bundle = inputs(missing, Some("hailo"), required).unwrap_err();
+            assert_eq!(no_bundle, "strict hailo testing requires TURBO_TEST_VECTORS_BUNDLE to name a bundle");
         }
     }
 
