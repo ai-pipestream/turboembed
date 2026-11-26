@@ -50,14 +50,18 @@ impl<'a> Parser<'a> {
         Err(E::xml(offset, message))
     }
 
+    fn bad<T>(&self, offset: usize, message: &'static str) -> std::result::Result<T, Bad> {
+        Err(Bad { offset, message })
+    }
+
     fn rest(&self) -> &'a str {
         &self.text[self.pos..]
     }
 
     fn document<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         if self.rest().starts_with("<?xml") && self.rest()[5..].starts_with(|c: char| c.is_ascii_whitespace()) {
-            let declaration = self.skip_past("?>", "the XML declaration is not closed")?;
-            super::decode::validate_declaration(declaration)?;
+            let declaration = self.skip_past("?>", "the XML declaration is not closed").map_err(Bad::lift)?;
+            super::decode::validate_declaration(declaration).map_err(Bad::lift)?;
         }
         while self.pos < self.text.len() {
             let rest = self.rest();
@@ -90,21 +94,21 @@ impl<'a> Parser<'a> {
     }
 
     /// Moves past the next `end`, or fails with `message`.
-    fn skip_past<E: XmlError>(&mut self, end: &str, message: &'static str) -> std::result::Result<&'a str, E> {
+    fn skip_past(&mut self, end: &str, message: &'static str) -> std::result::Result<&'a str, Bad> {
         let rest = self.rest();
         match rest.find(end) {
             Some(i) => {
                 self.pos += i + end.len();
                 Ok(&rest[..i])
             }
-            None => self.err(self.pos, message),
+            None => self.bad(self.pos, message),
         }
     }
 
     fn comment<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 4;
-        let body = self.skip_past("-->", "a comment is not closed")?;
+        let body = self.skip_past("-->", "a comment is not closed").map_err(Bad::lift)?;
         if body.contains("--") || body.ends_with('-') {
             return self.err(start, "a comment contains \"--\"");
         }
@@ -115,7 +119,7 @@ impl<'a> Parser<'a> {
     fn processing_instruction<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 2;
-        let body = self.skip_past("?>", "a processing instruction is not closed")?;
+        let body = self.skip_past("?>", "a processing instruction is not closed").map_err(Bad::lift)?;
         let target = body.split(|c: char| (c as u32) < 0x80 && is_space(c as u8)).next().unwrap_or("");
         if target.is_empty() || !target.starts_with(is_name_start) || !target.chars().all(is_name_char) {
             return self.err(start, "a processing instruction has no valid target");
@@ -130,18 +134,18 @@ impl<'a> Parser<'a> {
     fn cdata<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 9;
-        let body = self.skip_past("]]>", "a CDATA section is not closed")?;
+        let body = self.skip_past("]]>", "a CDATA section is not closed").map_err(Bad::lift)?;
         emit_normalized(body, handler);
         handler.cdata_section(start, self.pos);
         Ok(())
     }
 
-    fn name<E: XmlError>(&mut self) -> std::result::Result<&'a str, E> {
+    fn name(&mut self) -> std::result::Result<&'a str, Bad> {
         let rest = self.rest();
         let mut chars = rest.char_indices();
         match chars.next() {
             Some((_, c)) if is_name_start(c) => {}
-            _ => return self.err(self.pos, "a name is expected"),
+            _ => return self.bad(self.pos, "a name is expected"),
         }
         let end = chars.find(|&(_, c)| !is_name_char(c)).map_or(rest.len(), |(i, _)| i);
         self.pos += end;
@@ -162,7 +166,7 @@ impl<'a> Parser<'a> {
             return self.err(start, "a second root element");
         }
         self.pos += 1;
-        let name = self.name()?;
+        let name = self.name().map_err(Bad::lift)?;
         self.attributes.clear();
         self.qualified.clear();
         if !self.seen.is_empty() {
@@ -189,7 +193,7 @@ impl<'a> Parser<'a> {
                     handler.element_closed(self.pos);
                     return Ok(());
                 }
-                Some(_) if spaced => self.attribute()?,
+                Some(_) if spaced => self.attribute().map_err(Bad::lift)?,
                 Some(_) => return self.err(self.pos, "a start tag needs a space before each attribute"),
                 None => return self.err(start, "a start tag is not closed"),
             }
@@ -202,28 +206,28 @@ impl<'a> Parser<'a> {
         handler.start_element(self.reported(name), &self.attributes, start)
     }
 
-    fn attribute<E: XmlError>(&mut self) -> std::result::Result<(), E> {
+    fn attribute(&mut self) -> std::result::Result<(), Bad> {
         let at = self.pos;
         let qualified = self.name()?;
         self.skip_spaces();
         if self.text.as_bytes().get(self.pos) != Some(&b'=') {
-            return self.err(self.pos, "an attribute name must be followed by '='");
+            return self.bad(self.pos, "an attribute name must be followed by '='");
         }
         self.pos += 1;
         self.skip_spaces();
         let quote = match self.text.as_bytes().get(self.pos) {
             Some(&q @ (b'"' | b'\'')) => q,
-            _ => return self.err(self.pos, "an attribute value must be quoted"),
+            _ => return self.bad(self.pos, "an attribute value must be quoted"),
         };
         self.pos += 1;
         let value_start = self.pos;
         let Some(len) = self.rest().bytes().position(|b| b == quote) else {
-            return self.err(value_start, "an attribute value is not closed");
+            return self.bad(value_start, "an attribute value is not closed");
         };
         self.pos += len + 1;
         let raw = &self.text[value_start..value_start + len];
         if let Some(i) = raw.find('<') {
-            return self.err(value_start + i, "'<' in an attribute value");
+            return self.bad(value_start + i, "'<' in an attribute value");
         }
         let twice = if self.qualified.len() < SCANNED_ATTRIBUTES {
             self.qualified.contains(&qualified)
@@ -234,7 +238,7 @@ impl<'a> Parser<'a> {
             !self.seen.insert(qualified)
         };
         if twice {
-            return self.err(at, "an attribute is given twice");
+            return self.bad(at, "an attribute is given twice");
         }
         let value = attribute_value(raw, value_start)?;
         self.qualified.push(qualified);
@@ -247,7 +251,7 @@ impl<'a> Parser<'a> {
     fn end_tag<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 2;
-        let name = self.name()?;
+        let name = self.name().map_err(Bad::lift)?;
         self.skip_spaces();
         if self.text.as_bytes().get(self.pos) != Some(&b'>') {
             return self.err(self.pos, "an end tag is not closed");
@@ -282,7 +286,7 @@ impl<'a> Parser<'a> {
         let mut offset = start;
         while let Some(amp) = rest.find('&') {
             emit_normalized(&rest[..amp], handler);
-            let (c, used) = reference(&rest[amp..], offset + amp)?;
+            let (c, used) = reference(&rest[amp..], offset + amp).map_err(Bad::lift)?;
             let mut buf = [0u8; 4];
             handler.characters(c.encode_utf8(&mut buf));
             rest = &rest[amp + used..];

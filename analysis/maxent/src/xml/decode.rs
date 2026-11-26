@@ -63,8 +63,8 @@ fn declared_encoding(bytes: &[u8]) -> Option<&[u8]> {
 }
 
 /// XMLDecl: version first, then optional encoding and standalone.
-pub(super) fn validate_declaration<E: XmlError>(declaration: &str) -> std::result::Result<(), E> {
-    let bad = || E::xml(0, "invalid XML declaration");
+pub(super) fn validate_declaration(declaration: &str) -> std::result::Result<(), Bad> {
+    let bad = || Bad { offset: 0, message: "invalid XML declaration" };
     let mut rest = &declaration[5..];
     let mut fields = Vec::new();
     while !rest.is_empty() {

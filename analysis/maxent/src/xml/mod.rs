@@ -49,6 +49,21 @@ impl XmlError for Error {
     }
 }
 
+/// A parser failure before it is given the caller's error type, so the
+/// helpers that cannot fail in a handler are compiled once here.
+#[derive(Debug)]
+pub(crate) struct Bad {
+    offset: usize,
+    message: &'static str,
+}
+
+impl Bad {
+    #[inline]
+    fn lift<E: XmlError>(self) -> E {
+        E::xml(self.offset, self.message)
+    }
+}
+
 /// One attribute of an element: its local name and its value with
 /// references resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
