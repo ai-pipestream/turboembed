@@ -179,6 +179,8 @@ fn pragmatics_annotator_combines_incongruity_emoji_and_embedding_head() {
         let dev_vec = Arc::new(
             VectorAnnotator::open(&bert(), &dev_opts).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={want}: {e}")),
         );
+        let exec = &dev_vec.info().execution;
+        assert_ne!(exec.backend, "cpu", "the device half ran on the CPU: {exec:?}");
         let dev_scorer: Arc<dyn PragmaticsVectorScorer> = Arc::new(HeadPragmaticsScorer(Arc::clone(&head)));
         let dev_prag_ann = PragmaticsAnnotator::new().with_vector_scorer(dev_scorer);
         let dev_pipe = Analyzer::builder()
