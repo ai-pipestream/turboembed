@@ -535,8 +535,8 @@ the sequences still running (every direction at once), and the copy of
 the states back. It then waits once. A non-finite gate or state is
 refused at the end of the run with INVALID_ARGUMENT, as the CPU form
 refuses it. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
-with `TURBO_TEST_REQUIRE_LEVELZERO=1` (or `TURBO_TEST_DEVICE=levelzero`),
-and fails when the LSTM cannot be made there.
+with `TURBO_TEST_DEVICE=levelzero`, and fails when the LSTM cannot be
+made there.
 
 ## Benchmark records
 

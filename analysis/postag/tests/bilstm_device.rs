@@ -3,11 +3,13 @@
 //! path's within 1e-5, a sentence tags the same alone as in a batch, and
 //! a release timing interleaved against the CPU path.
 //!
-//! The device is TURBO_TEST_DEVICE (cuda, levelzero, metal, or any with :N),
-//! else cuda with TURBO_TEST_REQUIRE_CUDA=1, levelzero with
-//! TURBO_TEST_REQUIRE_LEVELZERO=1 or metal with TURBO_TEST_REQUIRE_METAL=1;
-//! without any the tests say they were
-//! skipped. A named device the tagger cannot be made on fails them.
+//! The device is TURBO_TEST_DEVICE (cuda, levelzero, metal, or any with
+//! :N); without it, or with cpu, the tests say they were skipped.
+//! TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO and
+//! TURBO_TEST_REQUIRE_METAL do not choose the device: set to anything but
+//! 0, the tests fail unless TURBO_TEST_DEVICE names a device of that
+//! backend, as in the other device tests. A named device the tagger cannot
+//! be made on fails them.
 
 mod bilstm_random;
 
@@ -19,13 +21,11 @@ use turbo_analysis::Annotator;
 use turbo_postag::neural::BilstmPosTagger;
 
 fn device() -> Option<Device> {
-    let device = match std::env::var("TURBO_TEST_DEVICE") {
-        Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
-        Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1") => Device::Cuda(0),
-        Err(_) if std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1") => Device::LevelZero(0),
-        Err(_) if std::env::var("TURBO_TEST_REQUIRE_METAL").is_ok_and(|v| v == "1") => Device::Metal(0),
-        Err(_) => return None,
-    };
+    let named = std::env::var("TURBO_TEST_DEVICE").ok();
+    let required = turbo_pins::device_required(&["cuda", "levelzero", "metal"]);
+    turbo_pins::check_test_device(named.as_deref(), required).unwrap_or_else(|e| panic!("{e}"));
+    let name = named?;
+    let device = Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message));
     (device != Device::Cpu).then_some(device)
 }
 
@@ -36,7 +36,7 @@ fn on(device: Device, m: &turbo_postag::neural::BilstmPosModel) -> BilstmPosTagg
 #[test]
 fn device_emissions_match_the_cpu() {
     let Some(device) = device() else {
-        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
+        println!("skipped: TURBO_TEST_DEVICE names no GPU");
         return;
     };
     for (seed, stacked, crf) in [(1, false, true), (2, true, true), (3, false, false)] {
@@ -56,7 +56,7 @@ fn device_emissions_match_the_cpu() {
 #[test]
 fn a_sentence_tags_the_same_alone_and_in_a_batch_on_the_device() {
     let Some(device) = device() else {
-        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
+        println!("skipped: TURBO_TEST_DEVICE names no GPU");
         return;
     };
     let m = model(4, true, true);
@@ -71,7 +71,7 @@ fn a_sentence_tags_the_same_alone_and_in_a_batch_on_the_device() {
 #[test]
 fn each_backend_hashes_apart_and_the_same_every_time() {
     let Some(device) = device() else {
-        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
+        println!("skipped: TURBO_TEST_DEVICE names no GPU");
         return;
     };
     let m = model(6, false, true);
@@ -102,7 +102,7 @@ fn summary(v: &mut [f64]) -> String {
 #[test]
 #[ignore = "timing; run in release on an idle machine with a quiet GPU"]
 fn device_tagger_timing() {
-    let device = device().expect("set TURBO_TEST_DEVICE or a TURBO_TEST_REQUIRE_*=1");
+    let device = device().expect("set TURBO_TEST_DEVICE to a GPU");
     let reps: usize = std::env::var("BILSTM_REPS").ok().and_then(|v| v.parse().ok()).unwrap_or(30);
     for stacked in [false, true] {
         let m = model(5, stacked, true);
@@ -145,7 +145,7 @@ fn device_tagger_timing() {
 fn fastest_stays_near_model_and_hashes_apart() {
     use turbo::device::Precision;
     let Some(device) = device() else {
-        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
+        println!("skipped: TURBO_TEST_DEVICE names no GPU");
         return;
     };
     if let Device::LevelZero(_) | Device::Metal(_) = device {

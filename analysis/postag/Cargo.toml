@@ -28,5 +28,7 @@ levelzero = ["turbo/levelzero"]
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
+# What TURBO_TEST_REQUIRE_<BACKEND> asks of a device test.
+turbo-pins = { path = "../pins" }
 # Writes a small model whose outcome holds half of a surrogate pair.
 turbo-train = { path = "../train" }
