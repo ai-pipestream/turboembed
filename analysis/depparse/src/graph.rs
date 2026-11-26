@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::{Error, Result, error};
 use turbo_analysis::{CodePointSpan, Ix, Layer, Span, Tag, TagSet, Utf16Span, View};
 use turbo_analysis_layers::{Dependencies, MorphPosTags, Tokens, Word, WordOrTokenAnchor};
@@ -79,8 +81,10 @@ pub struct DependencyGraph<A: WordOrTokenAnchor = Tokens> {
     layer: Dependencies<A>,
     children: Vec<Vec<Ix<A>>>,
     roots: Vec<Ix<A>>,
-    depth: Vec<u32>,
-    root_of: Vec<u32>,
+    /// Depth and root of every node, built on the first path query:
+    /// most graphs are never asked for a path (the parser builds one
+    /// per sentence), so construction does not pay for the tables.
+    tables: OnceLock<(Vec<u32>, Vec<u32>)>,
     pub(crate) label_encoding: crate::LabelEncoding,
 }
 impl<A: WordOrTokenAnchor> Clone for DependencyGraph<A> {
@@ -89,8 +93,7 @@ impl<A: WordOrTokenAnchor> Clone for DependencyGraph<A> {
             layer: self.layer.clone(),
             children: self.children.clone(),
             roots: self.roots.clone(),
-            depth: self.depth.clone(),
-            root_of: self.root_of.clone(),
+            tables: self.tables.get().map(|t| OnceLock::from(t.clone())).unwrap_or_default(),
             label_encoding: self.label_encoding,
         }
     }
@@ -148,23 +151,32 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
                 roots.push(node);
             }
         }
-        let mut depth = vec![0u32; n];
-        let mut root_of = vec![0u32; n];
-        let mut stack = Vec::new();
-        for &root in &roots {
-            let root_id = root.get() as u32;
-            root_of[root.get()] = root_id;
-            stack.push(root);
-            while let Some(u) = stack.pop() {
-                let next_depth = depth[u.get()] + 1;
-                for &child in &children[u.get()] {
-                    depth[child.get()] = next_depth;
-                    root_of[child.get()] = root_id;
-                    stack.push(child);
+        Ok(Self { layer, children, roots, tables: OnceLock::new(), label_encoding: crate::LabelEncoding::Plain })
+    }
+
+    /// The depth and root tables, built once on first use.
+    fn tables(&self) -> &(Vec<u32>, Vec<u32>) {
+        let (roots, children) = (&self.roots, &self.children);
+        self.tables.get_or_init(|| {
+            let n = children.len();
+            let mut depth = vec![0u32; n];
+            let mut root_of = vec![0u32; n];
+            let mut stack = Vec::new();
+            for &root in roots {
+                let root_id = root.get() as u32;
+                root_of[root.get()] = root_id;
+                stack.push(root);
+                while let Some(u) = stack.pop() {
+                    let next_depth = depth[u.get()] + 1;
+                    for &child in &children[u.get()] {
+                        depth[child.get()] = next_depth;
+                        root_of[child.get()] = root_id;
+                        stack.push(child);
+                    }
                 }
             }
-        }
-        Ok(Self { layer, children, roots, depth, root_of, label_encoding: crate::LabelEncoding::Plain })
+            (depth, root_of)
+        })
     }
     pub fn to_layer(&self) -> Dependencies<A> {
         self.layer.clone()
@@ -303,12 +315,13 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
         if u.get() >= self.len() || v.get() >= self.len() {
             return Err(error("node out of range"));
         }
-        if self.root_of[u.get()] != self.root_of[v.get()] {
+        let (depth, root_of) = self.tables();
+        if root_of[u.get()] != root_of[v.get()] {
             return Ok(None);
         }
         let cap = max_len.unwrap_or(usize::MAX);
         let (mut a, mut b) = (u, v);
-        let (da, db) = (self.depth[a.get()], self.depth[b.get()]);
+        let (da, db) = (depth[a.get()], depth[b.get()]);
         let mut steps = da.abs_diff(db) as usize;
         if steps > cap {
             return Ok(None);
@@ -350,8 +363,9 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
         let Some(lca) = self.lca_bounded(u, v, max_len, &mut arc_reads)? else {
             return Ok(PathSearch { found: false, arc_reads });
         };
-        let up_len = (self.depth[u.get()] - self.depth[lca.get()]) as usize;
-        let down_len = (self.depth[v.get()] - self.depth[lca.get()]) as usize;
+        let (depth, _) = self.tables();
+        let up_len = (depth[u.get()] - depth[lca.get()]) as usize;
+        let down_len = (depth[v.get()] - depth[lca.get()]) as usize;
         out.reserve(up_len + down_len);
         let mut n = u;
         while n != lca {
