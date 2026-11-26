@@ -70,6 +70,7 @@ pub fn request(text: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineRequ
         relations: None,
         relation_model: String::new(),
         vocabulary: None,
+        typed_result: None,
     }
 }
 

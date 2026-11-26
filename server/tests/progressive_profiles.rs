@@ -161,6 +161,7 @@ async fn each_named_profile_runs_from_single_request_and_produces_exact_listed_l
             relations: None,
             relation_model: String::new(),
             vocabulary: None,
+            typed_result: None,
         };
         let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
         let mut events = Vec::new();
@@ -231,6 +232,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             relations: None,
             relation_model: String::new(),
             vocabulary: None,
+            typed_result: None,
         })
         .await
         .unwrap_err();
@@ -259,6 +261,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             relations: None,
             relation_model: String::new(),
             vocabulary: None,
+            typed_result: None,
         })
         .await
         .unwrap_err();
@@ -285,6 +288,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             relations: None,
             relation_model: String::new(),
             vocabulary: None,
+            typed_result: None,
         })
         .await
         .unwrap_err();
@@ -347,6 +351,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
         relations: None,
         relation_model: String::new(),
         vocabulary: None,
+        typed_result: None,
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();

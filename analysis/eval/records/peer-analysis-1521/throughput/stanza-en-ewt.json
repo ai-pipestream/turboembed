@@ -7,9 +7,9 @@
     "--network",
     "none",
     "-v",
-    "/work/ud-data:/gold:ro",
+    "<gold-dir>:/gold:ro",
     "-v",
-    "/tmp/stanza-tp:/out",
+    "<out-dir>:/out",
     "turbo-peer-stanza:1.10.1-en",
     "/gold/en_ewt-ud-test.conllu",
     "/out/stanza.conllu"
@@ -21,7 +21,7 @@
     "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "sentences_per_run": 2077,
-  "output_file": "/tmp/stanza-tp/stanza.conllu",
+  "output_file": "<out-dir>/stanza.conllu",
   "runs": [
     {
       "seconds": 51.40728016301,

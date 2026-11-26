@@ -81,10 +81,7 @@ impl Tagger {
 
 impl Run for Tagger {
     fn annotate(&self, text: &str, golden: Option<&Golden>) -> Result<Document, RustError> {
-        match golden {
-            Some(_) => analyze_document(&self.on_golden, document(text, golden)?),
-            None => analyze(&self.plain, text),
-        }
+        annotate_either(&self.on_golden, &self.plain, text, golden)
     }
 
     fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
@@ -92,16 +89,31 @@ impl Run for Tagger {
     }
 
     fn check(&self, text: &str, golden: &Golden) -> super::Checked {
-        if let Some(skipped) = cut(golden) {
-            return super::Checked { doc: None, outcome: skipped };
-        }
-        default_check(self, text, golden)
+        check_unless_cut(self, text, golden)
     }
 }
 
-/// The default `Run::check`, for the runs that override it only to skip
-/// goldens they cannot load.
-fn default_check(run: &dyn Run, text: &str, golden: &Golden) -> super::Checked {
+/// A run on the golden's own layers when there is a golden, else on the
+/// text alone.
+fn annotate_either(
+    on_golden: &Analyzer,
+    plain: &Analyzer,
+    text: &str,
+    golden: Option<&Golden>,
+) -> Result<Document, RustError> {
+    match golden {
+        Some(_) => analyze_document(on_golden, document(text, golden)?),
+        None => analyze(plain, text),
+    }
+}
+
+/// `Run::check` for the runs that override it only to skip goldens they
+/// cannot load: skipped when the golden's tokens cut a character, else the
+/// default check.
+fn check_unless_cut(run: &dyn Run, text: &str, golden: &Golden) -> super::Checked {
+    if let Some(skipped) = cut(golden) {
+        return super::Checked { doc: None, outcome: skipped };
+    }
     match run.annotate(text, Some(golden)) {
         Ok(doc) => {
             let outcome = super::jvm_threw(golden).unwrap_or_else(|| run.compare(&doc, golden));
@@ -162,10 +174,7 @@ impl DictionaryRun {
 
 impl Run for DictionaryRun {
     fn annotate(&self, text: &str, golden: Option<&Golden>) -> Result<Document, RustError> {
-        match golden {
-            Some(_) => analyze_document(&self.on_golden, document(text, golden)?),
-            None => analyze(&self.plain, text),
-        }
+        annotate_either(&self.on_golden, &self.plain, text, golden)
     }
 
     fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
@@ -176,9 +185,6 @@ impl Run for DictionaryRun {
     }
 
     fn check(&self, text: &str, golden: &Golden) -> super::Checked {
-        if let Some(skipped) = cut(golden) {
-            return super::Checked { doc: None, outcome: skipped };
-        }
-        default_check(self, text, golden)
+        check_unless_cut(self, text, golden)
     }
 }

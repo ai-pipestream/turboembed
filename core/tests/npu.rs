@@ -141,6 +141,61 @@ fn the_devices_listed_are_npus_that_answered_the_graph_probe() {
 
 // ---- Capability ------------------------------------------------------------------
 
+const PRECISIONS: [(u32, &str); 2] = [(TURBO_PRECISION_MODEL, "model"), (TURBO_PRECISION_FASTEST, "fastest")];
+
+/// The committed ROWS_MIXED record that backs the embed cell of an npu
+/// device with this operating system, arch and graph format, at the
+/// precision named `label`. Two cells have one, both windows on arl-npu:
+/// the NGRAPH_LITE graph, measured on BGE-large, and the NATIVE graph
+/// from the driver's exported blob, measured on all-MiniLM-L6-v2. Each
+/// lists cases 0 through 7, each its own [1, 128] frame, and falls short
+/// of nothing, so the core promotes those cells to SUPPORTED.
+fn backing_record(os: &str, arch: &str, format: &str, label: &str) -> Option<String> {
+    let (graph, model) = match (os, arch, format) {
+        ("windows", "arl-npu", "NGRAPH_LITE") => ("ngraph-lite", "bge-large-en-v1-5-7ff68f5c.de964e7a6bcf"),
+        ("windows", "arl-npu", "NATIVE") => ("native", "all-minilm-l6-v2-da08a0f9.db0514120b6a"),
+        _ => return None,
+    };
+    Some(format!("arl-npu.npu.{graph}.embed.{label}.{model}.json"))
+}
+
+/// The cell the core asks the records about for an npu device.
+fn cell<'a>(os: &'a str, arch: &'a str, name: &'a str, format: &'a str, precision: u32) -> record::Cell<'a> {
+    record::Cell {
+        arch,
+        name,
+        cpu: false,
+        backend: "npu",
+        task: TURBO_TASK_EMBED,
+        precision,
+        dtype: TURBO_DTYPE_F16,
+        version: record::library_version(),
+        os,
+        graph_format: Some(format),
+    }
+}
+
+/// Needs no device: the records name the cells the device test expects
+/// SUPPORTED on, and no other.
+#[test]
+fn the_committed_records_back_the_ngraph_lite_and_the_native_cell() {
+    let verdict = |os, arch, format, p| record::decide_embedded(&cell(os, arch, "Intel(R) AI Boost", format, p));
+    for (p, label) in PRECISIONS {
+        for format in ["NGRAPH_LITE", "NATIVE"] {
+            let name = backing_record("windows", "arl-npu", format, label).unwrap();
+            match verdict("windows", "arl-npu", format, p) {
+                record::Verdict::Supported { benchmark, .. } => assert_eq!(benchmark, name),
+                record::Verdict::Not(why) => panic!("{name} not supported: {why}"),
+            }
+        }
+        for (os, arch, format) in [("linux", "arl-npu", "NATIVE"), ("windows", "lnl-npu", "NATIVE")] {
+            assert_eq!(backing_record(os, arch, format, label), None);
+            let v = verdict(os, arch, format, p);
+            assert!(matches!(v, record::Verdict::Not(_)), "{os}, {arch}, {format}, {label}: {v:?}");
+        }
+    }
+}
+
 #[test]
 fn embed_is_offered_and_exact_is_refused() {
     let rt = Rt::new();
@@ -151,14 +206,10 @@ fn embed_is_offered_and_exact_is_refused() {
         assert_eq!(unsafe { turbo_runtime_capability(rt.0, d, TURBO_TASK_EMBED, p, &mut cap, ptr::null_mut()) }, 0);
         cap
     };
-    let arch = field(&rt.info(d).arch);
+    let (arch, device_name) = (field(&rt.info(d).arch), field(&rt.info(d).name));
     // The first listed npu device is ordinal 0 in the backend's own list.
     let format = turbo::npu::load_format(0).expect("a listed device has a graph format");
-    // The committed ROWS_MIXED files match windows, arl-npu, NGRAPH_LITE
-    // and list cases 0 through 7, each its own [1, 128] frame.
-    // falls_short is none, so decide_embedded promotes those cells.
-    let backed = std::env::consts::OS == "windows" && arch == "arl-npu" && format == "NGRAPH_LITE";
-    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+    for (p, label) in PRECISIONS {
         let c = cap(p);
         assert_eq!(c.dtype, TURBO_DTYPE_F16, "the recipe's declared compute dtype, without a load");
         assert!(!field(&c.reason).contains("dtype 0"), "{}", field(&c.reason));
@@ -167,40 +218,21 @@ fn embed_is_offered_and_exact_is_refused() {
         // prompt_role itself, which it applies before any backend sees
         // the rows.
         assert_eq!(c.options_honored, 0b1111_1111, "every field of turbo_embed_options but layers (9)");
-        let name = match p {
-            TURBO_PRECISION_MODEL => "arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
-            TURBO_PRECISION_FASTEST => {
-                "arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json"
-            }
-            _ => unreachable!(),
-        };
-        if backed {
-            assert_eq!(c.status, backend::TURBO_CAP_SUPPORTED, "{}", field(&c.reason));
-            assert_eq!(field(&c.benchmark), name);
-            assert_eq!(field(&c.reason), "");
-            let cell = record::Cell {
-                arch: &arch,
-                name: "Intel(R) AI Boost",
-                cpu: false,
-                backend: "npu",
-                task: TURBO_TASK_EMBED,
-                precision: p,
-                dtype: TURBO_DTYPE_F16,
-                version: record::library_version(),
-                os: "windows",
-                graph_format: Some("NGRAPH_LITE"),
-            };
-            match record::decide_embedded(&cell) {
-                record::Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
-                    assert_eq!(benchmark, name);
-                    assert_eq!((c.cosine_floor, c.speed_ratio), (cosine_floor as f32, speed_ratio as f32));
-                }
-                record::Verdict::Not(why) => panic!("{name} not supported: {why}"),
-            }
-        } else {
+        let Some(name) = backing_record(std::env::consts::OS, &arch, format, label) else {
             assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
             assert!(field(&c.benchmark).is_empty(), "{}", field(&c.benchmark));
             assert_eq!(field(&c.reason), "no benchmark record for this cell");
+            continue;
+        };
+        assert_eq!(c.status, backend::TURBO_CAP_SUPPORTED, "{format}: {}", field(&c.reason));
+        assert_eq!(field(&c.benchmark), name);
+        assert_eq!(field(&c.reason), "");
+        match record::decide_embedded(&cell(std::env::consts::OS, &arch, &device_name, format, p)) {
+            record::Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                assert_eq!(benchmark, name);
+                assert_eq!((c.cosine_floor, c.speed_ratio), (cosine_floor as f32, speed_ratio as f32));
+            }
+            record::Verdict::Not(why) => panic!("{name} not supported: {why}"),
         }
     }
     let c = cap(TURBO_PRECISION_EXACT);

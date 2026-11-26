@@ -7,9 +7,9 @@
     "--network",
     "none",
     "-v",
-    "/work/ud-data:/gold:ro",
+    "<gold-dir>:/gold:ro",
     "-v",
-    "/tmp/wtpsplit-tp:/out",
+    "<out-dir>:/out",
     "turbo-peer-wtpsplit:2.2.2-sat-3l",
     "/gold/en_ewt-ud-test.conllu",
     "/out/wtpsplit.txt"
@@ -21,7 +21,7 @@
     "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "sentences_per_run": 2077,
-  "output_file": "/tmp/wtpsplit-tp/wtpsplit.txt",
+  "output_file": "<out-dir>/wtpsplit.txt",
   "runs": [
     {
       "seconds": 7.662088952012709,

@@ -104,6 +104,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         relations: None,
         relation_model: String::new(),
         vocabulary: None,
+        typed_result: None,
     }
 }
 

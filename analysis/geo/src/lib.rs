@@ -107,6 +107,7 @@ mod overlay;
 mod overture;
 mod profiles;
 mod ranking;
+mod record;
 mod region;
 mod snapshot;
 mod store;

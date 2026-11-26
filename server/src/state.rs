@@ -106,6 +106,8 @@ pub(crate) struct State {
     pub(crate) pii_resolver: Arc<crate::pii_policy::ServerResolver>,
     /// Digest-pinned resolver and cache over the vocabulary store (#2013).
     pub(crate) vocabulary_resolver: Arc<crate::vocabulary::VocabularyResolver>,
+    /// The analyzers AnalyzeQuery has built, by profile.
+    pub(crate) query_analyzers: crate::results::analyze_query::AnalyzerCache,
 }
 
 fn not_found(name: &str) -> Failure {
@@ -150,6 +152,7 @@ impl State {
             pii_policies: crate::pii_policy::NamedPolicies::default(),
             pii_resolver: Arc::default(),
             vocabulary_resolver: Arc::default(),
+            query_analyzers: Default::default(),
         }
     }
 

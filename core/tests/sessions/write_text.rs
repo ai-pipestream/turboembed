@@ -95,6 +95,32 @@ fn a_cut_text_is_told_row_by_row() {
     assert_eq!(row_tokens(&s).err().unwrap().code, INVALID_STATE);
 }
 
+/// A text of exactly the limit is whole, one token more is cut, and in a
+/// batch beside a short and a long text each row keeps its own counts, in
+/// order.
+#[test]
+fn a_text_at_the_limit_is_whole_and_one_over_is_cut() {
+    let l = tiny();
+    let s = Session::create(l.m, Some(&session_desc(4, 64, 0))).unwrap();
+    let words = |n: usize| vec!["a"; n].join(" ");
+    let whole = |n: usize| {
+        s.write_text(&[words(n).as_str()], None).unwrap();
+        row_tokens(&s).unwrap()[0]
+    };
+    // The bundle's max_seq is 64, special tokens included.
+    let at = (1..64).find(|&n| whole(n).seen == 64).expect("a text of exactly 64 tokens");
+    let r = whole(at);
+    assert_eq!((r.kept, r.seen, r.seen_known, r.truncated), (64, 64, 1, 0), "{r:?}");
+    let r = whole(at + 1);
+    assert_eq!((r.kept, r.seen, r.seen_known, r.truncated), (64, 65, 1, 1), "{r:?}");
+    let (short, exact, over) = (words(1), words(at), words(at + 1));
+    s.write_text(&[short.as_str(), exact.as_str(), PARAGRAPH, over.as_str()], None).unwrap();
+    let rows = row_tokens(&s).unwrap();
+    let counts: Vec<_> = rows.iter().map(|r| (r.kept, r.truncated)).collect();
+    assert_eq!(counts, [(rows[0].seen, 0), (64, 0), (64, 1), (64, 1)], "{rows:?}");
+    assert_eq!((rows[1].seen, rows[3].seen), (64, 65), "{rows:?}");
+}
+
 #[test]
 fn every_option_is_checked_by_name() {
     let l = tiny();

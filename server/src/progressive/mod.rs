@@ -14,6 +14,7 @@ pub mod seed;
 #[cfg(test)]
 mod step_error_tests;
 mod steps;
+mod typed;
 
 use std::collections::HashSet;
 use std::pin::Pin;
@@ -110,6 +111,7 @@ pub(crate) async fn start_progressive(
     check_binding(req.binding.as_ref(), "binding").map_err(plain)?;
     let disclosure = Disclosure::decide(req.pii_output.as_ref(), pii_policy).map_err(plain)?;
 
+    let typed = req.typed_result.as_ref().map(typed::target).transpose().map_err(plain)?;
     let doc = build_initial_document(&req, offsets)?;
     let analyzer = build_pipeline(state, &req, &doc)?;
     let mut op = Operation::start(&req.operation_key);
@@ -128,7 +130,7 @@ pub(crate) async fn start_progressive(
     tokio::task::spawn_blocking(move || {
         // The run owns the stream's senders, so the reply has ended when
         // it returns; a panic in it ends the reply INTERNAL (#2516).
-        let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone(), metrics };
+        let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone(), typed, metrics };
         let reply = tx.clone();
         let run = move || run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
         let delivered = reply_on_panic(reply, "the progressive analysis task", run).flatten();
@@ -268,6 +270,7 @@ struct Answer {
     offsets: i32,
     disclosure: Disclosure,
     binding: Option<InputBinding>,
+    typed: Option<typed::Target>,
     metrics: Arc<Metrics>,
 }
 
@@ -280,7 +283,7 @@ fn run_progressive_task(
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
-    let Answer { doc_id, offsets: proto_offsets, disclosure, binding, metrics } = answer;
+    let Answer { mut doc_id, offsets: proto_offsets, disclosure, binding, typed, metrics } = answer;
     // Whether snapshots may carry graph bytes is decided for the request
     // before anything streams: a pipeline that will write PII findings
     // withholds them from the first snapshot on, since the text is the
@@ -310,7 +313,8 @@ fn run_progressive_task(
     let started = AnalyzeProgressiveEvent {
         sequence: seq,
         event: Some(Event::Started(AnalysisStarted {
-            doc_id,
+            // Kept only for a typed projection to name; moved otherwise.
+            doc_id: if typed.is_some() { doc_id.clone() } else { std::mem::take(&mut doc_id) },
             offsets: proto_offsets,
             step_ids: analyzer.step_ids().into_iter().map(str::to_owned).collect(),
             views: initial_export.views.iter().map(|r| view_info(&initial_export, r)).collect(),
@@ -451,10 +455,16 @@ fn run_progressive_task(
     // (docs/grpc-sink.md); the client is answered under the request's.
     let full = export_document_response(&doc, &Disclosure::FULL);
     let answered = if disclosure.graph(&doc) { full.clone() } else { export_document_response(&doc, &disclosure) };
-    match full.and_then(|full| answered.map(|complete| (full, complete))) {
-        Ok((full, mut complete)) => {
+    let projected = match (&full, typed) {
+        (Ok(f), Some(t)) => typed::project(&doc_id, &f.graph, t, binding.as_ref(), &op.key, &disclosure).map(Some),
+        // Unasked, or the export failed, which is the stream's answer.
+        _ => Ok(None),
+    };
+    match full.and_then(|full| answered.and_then(|complete| projected.map(|t| (full, complete, t)))) {
+        Ok((full, mut complete, projected)) => {
             // The client's findings projection carries the request's binding.
             complete.findings = complete.findings.map(|f| bound(f, binding.as_ref()));
+            complete.typed = projected;
             seq += 1;
             // The result is the complete graph; a client that was not
             // handed its bytes is not handed their digest either (#2403).
@@ -466,8 +476,7 @@ fn run_progressive_task(
                 graph: full.graph,
                 layers: full.layers,
                 views: full.views,
-                source_text: String::new(),
-                findings: None,
+                ..Default::default()
             };
             let event = AnalyzeProgressiveEvent { sequence: seq, event: Some(Event::Complete(complete)) };
             if tx.blocking_send(Ok(event)).is_err() {

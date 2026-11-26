@@ -897,7 +897,9 @@ message InputTokens
   // the text was cut by characters before it was tokenized, as a static
   // model does under TURBO_TRUNCATE_RIGHT: the count was never made.
   // A static model leaves unknown tokens out of its row and out of this
-  // count alike, so truncated is set exactly when kept is under seen.
+  // count alike, so where seen is set, truncated is set exactly when kept
+  // is under seen; where it is absent, truncated says the character cut
+  // dropped text, even text that would have given no tokens.
   optional uint32 seen = 2;
 
   // Whether part of the text was not read by the model.
@@ -1061,6 +1063,11 @@ message DocumentGraphResponse
   // The findings, projected onto the source view in UTF-8 offsets, when
   // `graph` was withheld for PII; unset otherwise.
   TypedDocumentResult findings = 5;
+  // The typed projection of the final graph, as InspectDocumentGraph
+  // answers for it under the request's PiiOutputOptions and with its
+  // binding, when AnalyzePipelineRequest.typed_result asked for it; set
+  // only on the progressive Complete event (issue #2517 F15).
+  TypedDocumentResult typed = 6;
 }
 
 // turbo:chunks, turbo:levels and turbo:embeddings (over the chunks)
@@ -1196,6 +1203,22 @@ message AnalyzePipelineRequest
   // vocabulary store for this request (#2013), overriding any
   // vocabulary bound on the bundle.
   optional VocabularyBinding vocabulary = 17;
+
+  // Asks the Complete event for the typed projection of the final graph
+  // (DocumentGraphResponse.typed), so a client reads the annotations as
+  // proto messages without a DocumentGraph reader or a second
+  // InspectDocumentGraph call (issue #2517 F15). Unset answers no
+  // projection, as before.
+  optional TypedResultOptions typed_result = 18;
+}
+
+// Which view and offsets the progressive Complete event's typed
+// projection is in; the same pair InspectDocumentGraph takes.
+message TypedResultOptions
+{
+  // The view the projection is over; 0 is the source view.
+  uint32 view = 1;
+  OffsetMode offsets = 2;
 }
 
 // Open-label entity extraction over a converted GLiNER package.

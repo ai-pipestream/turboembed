@@ -108,6 +108,9 @@ async fn a_call_that_ended_before_the_query_runs_nothing() {
     deadline.trip();
     let held = loaded.take().unwrap();
     let run = Run { state, loaded: &loaded, slot: held.slot(), deadline: &deadline };
-    assert!(query_vectors(&run, &request()).is_err());
+    let cancelled_before = loaded.metrics.cancelled_before_exec();
+    let err = query_vectors(&run, &request()).err().expect("the query of an ended call is not encoded");
+    assert!(err.message.contains("deadline"), "{}", err.message);
     assert_eq!(state.stream.runs.load(Ordering::Relaxed), 0);
+    assert_eq!(loaded.metrics.cancelled_before_exec(), cancelled_before + 1);
 }

@@ -119,6 +119,7 @@ fn response(
             views,
             source_text: out.source.text.clone(),
             findings: None,
+            typed: None,
         });
     }
     let findings = document_to_typed_with("", doc, ViewId::SOURCE, OffsetMode::Utf8, disclosure)?;
@@ -128,6 +129,7 @@ fn response(
         views,
         source_text: String::new(),
         findings: Some(findings),
+        typed: None,
     })
 }
 

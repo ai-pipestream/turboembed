@@ -11,6 +11,7 @@ use crate::entry::GazetteerEntry;
 use crate::fold::Folder;
 use crate::geocode::by_prior_view;
 use crate::index::{GazetteerIndex, with_key};
+use crate::record::Record;
 use crate::store::Entry;
 
 const JARO_WINKLER_PREFIX_SCALE: f64 = 0.1;
@@ -319,35 +320,17 @@ impl FuzzyStringScorer {
     /// Scores `query` against a borrowed gazetteer [`Entry`] across its
     /// canonical name and all alternate names, returning a value in `[0.0, 1.0]`.
     pub fn score_entry(&self, query: &str, entry: &Entry<'_>) -> f64 {
-        with_key(query, |q_key| {
-            if q_key.is_empty() {
-                return 0.0;
-            }
-            with_workspace(|ws| {
-                ws.load_a(q_key);
-                let mut key_buf = std::mem::take(&mut ws.key_buf);
-                ws.folder.fold_into(entry.name(), &mut key_buf);
-                let mut best = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
-                if best < 1.0 {
-                    for alt in entry.alternate_names() {
-                        ws.folder.fold_into(alt, &mut key_buf);
-                        let s = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
-                        if s > best {
-                            best = s;
-                            if best >= 1.0 {
-                                break;
-                            }
-                        }
-                    }
-                }
-                ws.key_buf = key_buf;
-                best
-            })
-        })
+        self.score_record(query, entry)
     }
 
     /// Scores `query` against an owned [`GazetteerEntry`].
     pub fn score_owned_entry(&self, query: &str, entry: &GazetteerEntry) -> f64 {
+        self.score_record(query, entry)
+    }
+
+    /// The best score of `query` against the record's canonical name and
+    /// its alternate names; the search stops at the first exact match.
+    fn score_record<R: Record>(&self, query: &str, entry: &R) -> f64 {
         with_key(query, |q_key| {
             if q_key.is_empty() {
                 return 0.0;
@@ -358,7 +341,7 @@ impl FuzzyStringScorer {
                 ws.folder.fold_into(entry.name(), &mut key_buf);
                 let mut best = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
                 if best < 1.0 {
-                    for alt in entry.alternate_names() {
+                    for alt in entry.alternates() {
                         ws.folder.fold_into(alt, &mut key_buf);
                         let s = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
                         if s > best {

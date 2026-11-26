@@ -22,7 +22,7 @@ use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{InspectDocumentGraphRequest, PiiValue, PiiWithheldReason, TypedDocumentResult, pii_value};
 use crate::results::disclosure::{PiiOutputPolicy, withheld_because};
 use crate::results::document::codecs;
-use crate::results::typed::inspect_document_graph_under;
+use crate::results::typed::{inspect_document_graph_under, validate_typed_document};
 
 /// One mention that receives a value.
 #[derive(Debug)]
@@ -100,6 +100,13 @@ pub fn project(
     require_recorded: bool,
 ) -> Result<Projected, Failure> {
     let mut typed = inspect_document_graph_under(req, policy)?;
+    // What follows takes the projection as valid: `covers` passes over
+    // edits of no policy. A debug build validates it inside the
+    // projection; a release build skips that there (#1906), so a values
+    // request validates it here, before any plan or audit call (#2541).
+    if !cfg!(debug_assertions) {
+        validate_typed_document(&typed)?;
+    }
     let mut plan = Vec::new();
     let has_pii = typed.layers.iter().any(|l| l.id == Pii::ID);
     if !has_pii && redaction.is_none() && !require_recorded {
@@ -181,8 +188,8 @@ pub fn project(
 /// by mention index: the first edits layer, in the graph's layer order,
 /// whose edit lists the mention among its members. Edits of no named
 /// policy cover nothing. An edit that names a rule with no policy digest
-/// never gets here: the projection's validator refuses the graph first,
-/// before any audit call.
+/// never gets here: [`project`] validates the projection first, in every
+/// build, before any audit call.
 fn covers(doc: &Document) -> Result<Vec<Option<Cover>>, Failure> {
     let mut out: Vec<Option<Cover>> = Vec::new();
     let ty = TypeId::of::<PiiEdits>();
