@@ -104,13 +104,17 @@ let tiles = [
     // h32n32 without range checks, which the backend runs when m, n and k
     // are multiples of 32 (every shape here).
     Tile(name: "h32n32a", bm: 32, bn: 32, threads: 128),
+    // h64n32 without range checks, which auto runs past 1024 packed tokens
+    // when m is a multiple of 64 and n and k of 32.
+    Tile(name: "h64n32a", bm: 64, bn: 32, threads: 128),
 ]
 // GEMM_TILES=<tile>[,<tile>...] times only those tiles, in that order, so
 // a driver can rotate which goes first.
 let picked = ProcessInfo.processInfo.environment["GEMM_TILES"].map { $0.split(separator: ",").map(String.init) }
 let timed = picked.map { names in names.map { n in (tiles + [Tile(name: "auto", bm: 0, bn: 0, threads: 0)]).first { $0.name == n }! } }
     ?? tiles + [Tile(name: "auto", bm: 0, bn: 0, threads: 0)]
-// docs/metal.md: auto is h32n32 up to 1024 packed tokens, h64 past it.
+// docs/metal.md: at these shapes, all whole multiples of 64 and 32, auto
+// is h32n32a up to 1024 packed tokens and h64n32a past it.
 let autoTokens = 1024
 let spread = 128
 
@@ -137,7 +141,7 @@ for mode in only.flatMap({ $0.count > 3 ? [$0[3]] : nil }) ?? ["bare", "encoder"
                 let w = (0..<3).map { _ in buffer(n * k * 2, halves) }
                 let bias = buffer(n * 4, floats)
                 for tile in timed {
-                    let t = tile.name == "auto" ? (m <= autoTokens ? tiles[3] : tiles[1]) : tile
+                    let t = tile.name == "auto" ? (m <= autoTokens ? tiles[5] : tiles[6]) : tile
                     let count = (n + t.bn - 1) / t.bn * ((m + t.bm - 1) / t.bm)
                     // In encoder mode, k is split as the encoder splits a
                     // single layer with no epilogue whose tiles leave most
