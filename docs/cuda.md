@@ -946,9 +946,8 @@ input projections in one product, then runs one kernel per step over the
 sequences still running and every direction at once, and copies the
 states out. A non-finite gate or state is refused at the end of the run,
 as INVALID_ARGUMENT, as the CPU form refuses it. `core/tests/device_lstm.rs`
-holds it to the CPU form at 1e-5; with `TURBO_TEST_REQUIRE_CUDA=1` (or
-`TURBO_TEST_DEVICE=cuda`) it runs on the GPU and fails when the LSTM
-cannot be made there.
+holds it to the CPU form at 1e-5; with `TURBO_TEST_DEVICE=cuda` it runs
+on the GPU and fails when the LSTM cannot be made there.
 
 At FASTEST (`Lstm::new_at` with `Precision::Fastest`) the input and
 recurrent weights are rounded to F16 on the device once, when the LSTM is
