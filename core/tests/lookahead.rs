@@ -44,18 +44,25 @@ fn banded_devices() -> Vec<(&'static str, u32, f64)> {
     let mut out = vec![("cpu", TURBO_PRECISION_MODEL, 1e-5)];
     for b in BANDED.into_iter().filter(|&b| b != "cpu") {
         if first_of(rt, b).is_none() {
-            assert!(
-                !linked(b) || turbo_pins::device_skip_allowed(b),
-                "the {b} backend is in this build and lists no device; TURBO_TEST_REQUIRE_{}=0 lets the test skip",
-                b.to_uppercase()
-            );
-            println!("{b}: skipped: no device");
+            skip_without_a_device(b);
             continue;
         }
         out.extend([(b, TURBO_PRECISION_MODEL, 1e-5), (b, TURBO_PRECISION_FASTEST, 5e-3)]);
     }
     unsafe { turbo_runtime_release(rt) };
     out
+}
+
+/// What a test does where backend `b` lists no device: it fails if `b` is
+/// in this build, unless TURBO_TEST_REQUIRE_<BACKEND>=0 lets it skip, and
+/// a test that goes on without the device says so.
+fn skip_without_a_device(b: &str) {
+    assert!(
+        !linked(b) || turbo_pins::device_skip_allowed(b),
+        "the {b} backend is in this build and lists no device; TURBO_TEST_REQUIRE_{}=0 lets the test skip",
+        b.to_uppercase()
+    );
+    println!("{b}: skipped: no device");
 }
 
 /// A session on `backend` at `precision` over the fixture.
@@ -267,15 +274,17 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
     assert!(e.message.contains(&first), "{}", e.message);
     assert!(!e.message.contains("lookahead"), "{}", e.message);
 
-    // The same through turbo_model_load where this machine has such a device.
+    // The same through turbo_model_load on such a device. A build with the
+    // backend that lists no device has not run this half.
     let mut rt = std::ptr::null_mut();
     assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
     let present = first_of(rt, b).is_some();
     unsafe { turbo_runtime_release(rt) };
-    if present {
-        let e = f.load_on(|rt| first_of(rt, b).unwrap()).err().unwrap();
-        assert!(e.is(BUNDLE_NO_ARTIFACT, &first), "{e:?}");
+    if !present {
+        return skip_without_a_device(b);
     }
+    let e = f.load_on(|rt| first_of(rt, b).unwrap()).err().unwrap();
+    assert!(e.is(BUNDLE_NO_ARTIFACT, &first), "{e:?}");
 }
 
 /// With `TURBO_TEST_BANDED_BUNDLE` naming a real BERT or RoBERTa bundle,
