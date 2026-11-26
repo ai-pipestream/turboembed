@@ -58,7 +58,9 @@ pub(crate) struct Bad {
 }
 
 impl Bad {
-    #[inline]
+    /// Only ever called to build an error, so it stays out of the hot
+    /// path's layout.
+    #[cold]
     fn lift<E: XmlError>(self) -> E {
         E::xml(self.offset, self.message)
     }
