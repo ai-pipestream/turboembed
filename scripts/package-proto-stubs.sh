@@ -53,11 +53,14 @@ JAVA_BUILD_DIR="$WORK_DIR/java-build"
 mkdir -p "$JAVA_BUILD_DIR"
 sed "s|<version>0.1.0</version>|<version>${VERSION}</version>|" \
   "$ROOT/clients/java/pom.xml" > "$JAVA_BUILD_DIR/pom.xml"
-mvn -B -q -f "$JAVA_BUILD_DIR/pom.xml" \
+bash "$ROOT/scripts/maven-ci.sh" resolve \
+  -f "$JAVA_BUILD_DIR/pom.xml" \
+  -Dproto.source.dir="$ROOT/server/proto" \
+  -Dlicense.source.dir="$ROOT"
+mvn -B -ntp -o -f "$JAVA_BUILD_DIR/pom.xml" \
   -Dproto.source.dir="$ROOT/server/proto" \
   -Dlicense.source.dir="$ROOT" \
-  -DskipTests \
-  package dependency:build-classpath -DincludeScope=test -Dmdep.outputFile="$WORK_DIR/java-runtime.cp"
+  "$(bash "$ROOT/scripts/maven-ci.sh" dependency-plugin):build-classpath" -DincludeScope=test -Dmdep.outputFile="$WORK_DIR/java-runtime.cp"
 
 JAR_NAME="turboembed-grpc-${VERSION}.jar"
 SOURCES_JAR_NAME="turboembed-grpc-${VERSION}-sources.jar"
