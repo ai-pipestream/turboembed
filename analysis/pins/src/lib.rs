@@ -17,7 +17,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-pub use device::device_skip_allowed;
+pub use device::{check_test_device, device_required, device_skip_allowed};
 
 /// The pin list beside this crate.
 pub const MODELS: &str = include_str!("../models.txt");

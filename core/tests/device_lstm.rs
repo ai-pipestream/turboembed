@@ -3,11 +3,14 @@
 //! batches, both directions, `run` and `run_gathered`, and the same
 //! refusals.
 //!
-//! The device is TURBO_TEST_DEVICE (cpu, cuda, levelzero, or either GPU
-//! with :N), else cuda with TURBO_TEST_REQUIRE_CUDA=1 or levelzero with
-//! TURBO_TEST_REQUIRE_LEVELZERO=1, else the CPU, where the harness checks
-//! itself bit for bit. A named device that cannot make the LSTM fails the
-//! test; it never falls back to the CPU.
+//! The device is TURBO_TEST_DEVICE (cpu, cuda, levelzero, metal, or a GPU
+//! with :N), and the CPU when it is not set, where the harness checks
+//! itself bit for bit. TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO
+//! and TURBO_TEST_REQUIRE_METAL do not choose the device: set to anything
+//! but 0, the tests fail unless TURBO_TEST_DEVICE names a device of that
+//! backend, as in the other device tests; unset or 0, they ask nothing
+//! here. A named device that cannot make the LSTM fails the test; it never
+//! falls back to the CPU.
 
 use turbo::cpu::lstm as cpu;
 use turbo::device::Device;
@@ -18,13 +21,12 @@ use turbo::status::{INVALID_ARGUMENT, INVALID_SHAPE, UNSUPPORTED};
 const BOUND: f32 = 1e-5;
 
 fn device() -> Device {
-    let required = |v: &str| std::env::var(v).is_ok_and(|v| v == "1");
-    match std::env::var("TURBO_TEST_DEVICE") {
-        Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
-        Err(_) if required("TURBO_TEST_REQUIRE_CUDA") => Device::Cuda(0),
-        Err(_) if required("TURBO_TEST_REQUIRE_LEVELZERO") => Device::LevelZero(0),
-        Err(_) if required("TURBO_TEST_REQUIRE_METAL") => Device::Metal(0),
-        Err(_) => Device::Cpu,
+    let named = std::env::var("TURBO_TEST_DEVICE").ok();
+    let required = turbo_pins::device_required(&["cuda", "levelzero", "metal"]);
+    turbo_pins::check_test_device(named.as_deref(), required).unwrap_or_else(|e| panic!("{e}"));
+    match named {
+        Some(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
+        None => Device::Cpu,
     }
 }
 

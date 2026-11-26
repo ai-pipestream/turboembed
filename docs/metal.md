@@ -403,7 +403,7 @@ command queue, and waits once. A non-finite gate or state is refused at
 the end of the run with INVALID_ARGUMENT, as the CPU form refuses it.
 FASTEST (F16 weights) is refused with UNSUPPORTED, never run at MODEL in
 its place. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
-with `TURBO_TEST_REQUIRE_METAL=1` (or `TURBO_TEST_DEVICE=metal`).
+with `TURBO_TEST_DEVICE=metal`.
 
 On the M2 (`docs/receipts/bilstm-metal-860/`) the states are within
 5.1e-7 of the CPU's, the BiLSTM-CRF tagger gives the goldens' 1980 tags,
