@@ -37,6 +37,7 @@ wipe() {
   [ -n "$work_dir" ] || return 0
   # shellcheck disable=SC2016
   printf '%s\n' \
+    'set -e' \
     'test -f /w/.turbo-ci-volume || { echo "turbo-ci: /w is not the runner volume" >&2; exit 1; }' \
     'find /w -mindepth 1 -maxdepth 1 ! -name .turbo-ci-volume ! -name lost+found -exec rm -rf {} +' \
     'mkdir -p /w/_tmp && chown 1001:1001 /w /w/_tmp && chmod 1777 /w/_tmp' \
