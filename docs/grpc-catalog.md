@@ -63,10 +63,13 @@ DIR/private/acceptances/<key>.json  one acceptance per file
 - Each acceptance is its own file, named by the SHA-256 of the user and
   the terms, so servers that record at once never rewrite each other's
   file; a revoke removes it. On Windows a revoke first renames the file
-  to `<key>.json.revoked.<pid>.<n>`, which no licence check reads; one
-  left behind is removed the next time a server that can write the
-  directory lists the acceptances. An acceptance recorded through one
-  server is honoured, listed and revoked through every other. The home's
+  to `<key>.json.revoked.<pid>.<n>`, which no licence check reads; a
+  leftover is removed the next time a server that can write the directory
+  lists the acceptances, and a rename refused on its reserved name takes a
+  fresh one. A listing leaves a fresh empty reservation alone so it is
+  not held or pending its delete when the rename runs. An acceptance
+  recorded through one server is honoured, listed and revoked through
+  every other. The home's
   `acceptances.json` is not read while a data directory is set. A
   record that does not parse, or is not named for the acceptance it
   holds, fails every licence check with an error naming the file, so a
