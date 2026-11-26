@@ -20,6 +20,13 @@ use crate::dictionary::DictionaryNameFinder;
 use crate::name::{Name, TokenNameFinder};
 use crate::regex_finder::{Pattern, RegexNameFinder};
 
+/// What both name finders read: the view and its tokens.
+const REQUIRES: &[turbo_analysis::KeyId] =
+    &[turbo_analysis::Key::<View>::DEFAULT.id(), turbo_analysis::Key::<Tokens>::DEFAULT.id()];
+
+/// What both name finders write.
+const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Entities>::DEFAULT.id()];
+
 impl Annotator for DictionaryNameFinder {
     const ID: &'static str = "turbo-namefind:dictionary";
     type Reads = (View, Tokens);
@@ -30,13 +37,10 @@ impl Annotator for DictionaryNameFinder {
     }
 
     fn requires(&self) -> &[turbo_analysis::KeyId] {
-        const REQUIRES: &[turbo_analysis::KeyId] =
-            &[turbo_analysis::Key::<View>::DEFAULT.id(), turbo_analysis::Key::<Tokens>::DEFAULT.id()];
         REQUIRES
     }
 
     fn produces(&self) -> &[turbo_analysis::KeyId] {
-        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Entities>::DEFAULT.id()];
         PRODUCES
     }
 
@@ -71,13 +75,10 @@ impl Annotator for RegexNameFinder {
     }
 
     fn requires(&self) -> &[turbo_analysis::KeyId] {
-        const REQUIRES: &[turbo_analysis::KeyId] =
-            &[turbo_analysis::Key::<View>::DEFAULT.id(), turbo_analysis::Key::<Tokens>::DEFAULT.id()];
         REQUIRES
     }
 
     fn produces(&self) -> &[turbo_analysis::KeyId] {
-        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Entities>::DEFAULT.id()];
         PRODUCES
     }
 

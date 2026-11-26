@@ -13,6 +13,7 @@
 //!   via [`SentencePolarityAnnotator::bound`]).
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Bound, Key, ModelRef, TagSet};
@@ -176,13 +177,14 @@ impl Default for SentencePolarityAnnotator {
 impl SentencePolarityAnnotator {
     /// Creates a [`SentencePolarityAnnotator`] in [`PolarityStage::Lexicon`] mode.
     pub fn new() -> Self {
-        Self {
-            stage: PolarityStage::Lexicon,
-            lexicon: LexiconSentiment::new(),
-            vector_scorer: None,
-            head_weight: DEFAULT_HEAD_WEIGHT,
-            categories: TagSet::new("sentiment:polarity", &POLARITY_NAMES),
-        }
+        Self::with_settings_of(PolarityAnnotator::new())
+    }
+
+    /// The sentence annotator with a document annotator's settings: the
+    /// two are configured alike and differ in what they score.
+    fn with_settings_of(document: PolarityAnnotator) -> Self {
+        let PolarityAnnotator { stage, lexicon, vector_scorer, head_weight, categories } = document;
+        Self { stage, lexicon, vector_scorer, head_weight, categories }
     }
 
     /// Creates a [`SentencePolarityAnnotator`] in [`PolarityStage::Learned`] mode.
@@ -192,11 +194,7 @@ impl SentencePolarityAnnotator {
 
     /// Creates a [`SentencePolarityAnnotator`] in [`PolarityStage::Hybrid`] mode.
     pub fn hybrid(lexicon: LexiconSentiment, scorer: Arc<dyn PolarityVectorScorer>, head_weight: f64) -> Self {
-        Self::new()
-            .with_lexicon(lexicon)
-            .with_vector_scorer(scorer)
-            .with_head_weight(head_weight)
-            .with_stage(PolarityStage::Hybrid)
+        Self::with_settings_of(PolarityAnnotator::hybrid(lexicon, scorer, head_weight))
     }
 
     /// Sets the [`PolarityStage`].
@@ -236,6 +234,24 @@ impl SentencePolarityAnnotator {
     pub(crate) fn effective_model_ref(&self) -> ModelRef {
         combined_model_ref(self.stage, &self.lexicon, self.vector_scorer.as_deref(), self.head_weight)
     }
+}
+
+/// The configuration both annotators hash: the stage, the head's weight,
+/// the lexicon's configuration and the learned scorer's, when there is one.
+fn combined_config_hash(
+    stage: PolarityStage,
+    lexicon: &LexiconSentiment,
+    scorer: Option<&dyn PolarityVectorScorer>,
+    head_weight: f64,
+) -> u64 {
+    let mut h = crate::hash::FoldHasher::default();
+    stage.hash(&mut h);
+    head_weight.to_bits().hash(&mut h);
+    Annotator::config_hash(lexicon).hash(&mut h);
+    if let Some(scorer) = scorer {
+        scorer.config_hash().hash(&mut h);
+    }
+    h.finish()
 }
 
 fn combined_model_ref(

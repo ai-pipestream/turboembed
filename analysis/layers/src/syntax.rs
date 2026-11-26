@@ -6,6 +6,18 @@ use turbo_analysis::{
 
 use crate::{Strs, Tokens, WordOrTokenAnchor, Words};
 
+/// Every tag is one of its tag set, and the probabilities, when given,
+/// are one per tag: what [`PosTags`] and [`ChunkTags`] both hold to.
+fn check_tags(tagset: &TagSet, tags: &[Tag], prob: Option<&[f64]>) -> Result<(), String> {
+    if tags.iter().any(|t| t.0 as usize >= tagset.len()) {
+        return Err(format!("a tag outside {}", tagset.name));
+    }
+    if prob.is_some_and(|p| p.len() != tags.len()) {
+        return Err("a probability for every tag".into());
+    }
+    Ok(())
+}
+
 /// One tag per token.
 pub struct PosTags {
     pub tagset: Arc<TagSet>,
@@ -28,13 +40,7 @@ impl Layer for PosTags {
         Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
-        if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
-            return Err(format!("a tag outside {}", self.tagset.name));
-        }
-        if self.prob.as_ref().is_some_and(|p| p.len() != self.tags.len()) {
-            return Err("a probability for every tag".into());
-        }
-        Ok(())
+        check_tags(&self.tagset, &self.tags, self.prob.as_deref())
     }
 }
 
@@ -338,13 +344,7 @@ impl Layer for ChunkTags {
         Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
-        if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
-            return Err(format!("a tag outside {}", self.tagset.name));
-        }
-        if self.prob.as_ref().is_some_and(|p| p.len() != self.tags.len()) {
-            return Err("a probability for every tag".into());
-        }
-        Ok(())
+        check_tags(&self.tagset, &self.tags, self.prob.as_deref())
     }
 }
 

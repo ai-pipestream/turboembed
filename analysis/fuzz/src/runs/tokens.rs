@@ -239,6 +239,15 @@ impl Run for Plain {
     }
 }
 
+/// The port's tokens against the JVM's, exactly; skipped when a JVM token
+/// cuts a character.
+fn compare_uncut(doc: &Document, golden: &Golden) -> Outcome {
+    if has_cut(golden, "turbo:tokens") {
+        return Outcome::Skipped("a JVM token starts or ends inside a surrogate pair".into());
+    }
+    outcome(matches_golden::<Tokens>(doc, golden, Tolerance::exact()))
+}
+
 /// The spans the JVM wrote, with the two halves of a cut character
 /// joined into one span, against the port's.
 fn compare_whole_characters(doc: &Document, golden: &Golden) -> Outcome {
@@ -346,10 +355,7 @@ impl Run for Unigram {
     }
 
     fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
-        if has_cut(golden, "turbo:tokens") {
-            return Outcome::Skipped("a JVM token starts or ends inside a surrogate pair".into());
-        }
-        outcome(matches_golden::<Tokens>(doc, golden, Tolerance::exact()))
+        compare_uncut(doc, golden)
     }
 }
 
@@ -405,10 +411,7 @@ impl Run for Lattice {
     }
 
     fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
-        if has_cut(golden, "turbo:tokens") {
-            return Outcome::Skipped("a JVM token starts or ends inside a surrogate pair".into());
-        }
-        outcome(matches_golden::<Tokens>(doc, golden, Tolerance::exact()))
+        compare_uncut(doc, golden)
     }
 
     /// Both sides may refuse a text whose dictionary offers no candidate
