@@ -183,8 +183,9 @@ digest. Each image holds `turbo-kserve` alone, built from
 `LICENSE` and `NOTICE` under `/opt/turbo/licenses/`. The cuda image is built with the
 toolkit and architectures of the Linux archive and, like it, links the
 CUDA runtime statically: the host needs the NVIDIA driver and the NVIDIA
-container toolkit, nothing in the image; without a GPU it runs the cpu
-backend.
+container toolkit, nothing in the image. To load the mounted bundles
+on CPU without a GPU, set `TURBO_KSERVE_BUNDLE_DEVICE=cpu` explicitly;
+the default numeric device is refused when CUDA lists no devices.
 
 The image holds no model. It runs as user 10001, listens on
 `0.0.0.0:8081`, and serves every bundle directory under `/bundles`, a
