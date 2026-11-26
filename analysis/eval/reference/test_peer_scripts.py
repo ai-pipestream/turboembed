@@ -6,7 +6,7 @@ analysis/eval/reference/test_peer_scripts.py).
 Covers the acceptance gate on the GLiNER checkpoint fetch, the
 FLORES short-text cut over awkward whitespace (through the
 converter end to end), and the throughput receipt's per-run output
-digests and working-tree provenance.
+digests, working-tree provenance and host-path placeholders.
 """
 
 import importlib.util
@@ -27,6 +27,13 @@ RECEIPT = os.path.join(HERE, "throughput_receipt.py")
 
 def load_convert():
     spec = importlib.util.spec_from_file_location("convert_gold", CONVERT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_receipt():
+    spec = importlib.util.spec_from_file_location("throughput_receipt", RECEIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -181,7 +188,7 @@ open(out_path, "w").write(f"run {n}\\n")
 
 
 class ThroughputReceipt(unittest.TestCase):
-    def receipt(self, cwd, tmp):
+    def receipt(self, cwd, tmp, options=(), operands=()):
         counter = os.path.join(tmp, "counter")
         produced = os.path.join(tmp, "produced.txt")
         stub = os.path.join(tmp, "stub.py")
@@ -191,8 +198,8 @@ class ThroughputReceipt(unittest.TestCase):
         done = run(
             [
                 sys.executable, RECEIPT, out, "10",
-                "--runs", "3", "--output", produced,
-                "--", sys.executable, stub, counter, produced,
+                "--runs", "3", "--output", produced, *options,
+                "--", sys.executable, stub, counter, produced, *operands,
             ],
             cwd=cwd,
         )
@@ -227,6 +234,71 @@ class ThroughputReceipt(unittest.TestCase):
             self.assertEqual(receipt["commit"], head)
             self.assertTrue(receipt["working_tree"]["dirty"])
             self.assertEqual(len(receipt["working_tree"]["diff_sha256"]), 64)
+
+    def test_the_directory_of_the_output_is_a_placeholder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            receipt = self.receipt(tmp, tmp)
+            # The command ran with the real paths: every run wrote
+            # the file that was hashed.
+            self.assertEqual(len(receipt["runs"]), 3)
+            self.assertEqual(receipt["output_file"], "<output-dir>/produced.txt")
+            self.assertEqual(
+                receipt["command"][1:],
+                ["<output-dir>/stub.py", "<output-dir>/counter", "<output-dir>/produced.txt"],
+            )
+            self.assertNotIn(tmp, json.dumps(receipt))
+
+    def test_bind_mounts_and_named_paths_are_placeholders(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as data:
+            gold = os.path.join(data, "ud")
+            receipt = self.receipt(
+                tmp, tmp,
+                options=["--path", f"work={tmp}"],
+                operands=[
+                    "-v", f"{gold}:/gold:ro", f"--volume={tmp}:/out", "-v", "cache:/root/.cache",
+                    f"--gold={gold}/test.conllu", gold + "-other",
+                ],
+            )
+            self.assertEqual(receipt["output_file"], "<work>/produced.txt")
+            self.assertEqual(
+                receipt["command"][1:],
+                [
+                    "<work>/stub.py", "<work>/counter", "<work>/produced.txt",
+                    # A mount is named after its directory in the
+                    # container, unless --path named the host side.
+                    "-v", "<gold-dir>:/gold:ro", "--volume=<work>:/out",
+                    # A named volume is no host path.
+                    "-v", "cache:/root/.cache",
+                    # A placeholder stands for a whole directory name.
+                    "--gold=<gold-dir>/test.conllu", gold + "-other",
+                ],
+            )
+
+    def test_a_path_option_without_a_directory_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "receipt.json")
+            done = run([sys.executable, RECEIPT, out, "10", "--path", "work", "--", "true"])
+            self.assertNotEqual(done.returncode, 0)
+            self.assertIn("expected NAME=DIR", done.stderr)
+            self.assertFalse(os.path.exists(out))
+
+    def test_mounts_and_whole_names(self):
+        tool = load_receipt()
+        self.assertEqual(tool.mount("/data/ud:/gold:ro"), ("/data/ud", "/gold"))
+        self.assertEqual(tool.mount("/data/ud:/gold"), ("/data/ud", "/gold"))
+        self.assertEqual(tool.mount("D:\\data\\ud:/gold:ro,z"), ("D:\\data\\ud", "/gold"))
+        self.assertIsNone(tool.mount("cache:/root/.cache"))
+        self.assertIsNone(tool.mount("/data/ud"))
+        dirs = tool.host_dirs(
+            ["docker", "run", "-v", "/data/ud:/gold/en:ro", "-v", "/scratch/a:/out", "image"],
+            {}, "/scratch/a/b/out.txt",
+        )
+        self.assertEqual(dirs, {"/data/ud": "<gold-en-dir>", "/scratch/a": "<out-dir>"})
+        self.assertEqual(tool.recorded("/scratch/a/b/out.txt", dirs), "<out-dir>/b/out.txt")
+        # A relative output names no directory of the host.
+        self.assertEqual(tool.host_dirs(["tool"], {}, "out/x.txt"), {})
+        for text in ["/var/data/ud", "/data/udpipe", "/data/ud.bak/x", "x/data/ud"]:
+            self.assertEqual(tool.recorded(text, dirs), text)
 
 
 if __name__ == "__main__":

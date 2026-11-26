@@ -7,7 +7,7 @@
     "--network",
     "none",
     "-v",
-    "/tmp/gliner-tp:/out",
+    "<out-dir>:/out",
     "turbo-peer-gliner:0.2.21-small-v2.1",
     "/out/wnut17-test.tsv",
     "/out/gliner-wnut17.txt"
@@ -19,7 +19,7 @@
     "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "sentences_per_run": 1287,
-  "output_file": "/tmp/gliner-tp/gliner-wnut17.txt",
+  "output_file": "<out-dir>/gliner-wnut17.txt",
   "runs": [
     {
       "seconds": 38.91736101299466,
