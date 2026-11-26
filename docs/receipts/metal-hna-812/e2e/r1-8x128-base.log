@@ -1,0 +1,9 @@
+round 1 size 8x128 side base
+before: load 2.15 53.29 105.75 gpu 0% at 2026-11-26T16:50:12Z
+metal Apple M2: p50 10.8149 ms, p99 10.8532 ms over 20 runs of [8, 128] ROWS_DENSE, 1024 live tokens, 1024 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 10.8149 ms, p99 10.8532 ms on [8, 128] ROWS_DENSE: 1024 token positions computed of 1024 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 11.6619 ms, p99 11.7038 ms on [8, 128] ROWS_DENSE: 1024 token positions computed of 1024 live
+<scratch>/e2e/out/r1/base/8x128/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.7755201ffb4e.json
+exit: 0
+after: load 2.15 53.29 105.75 gpu 94% at 2026-11-26T16:50:14Z

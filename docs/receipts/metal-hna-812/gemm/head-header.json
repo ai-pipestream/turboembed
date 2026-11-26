@@ -1,0 +1,1 @@
+{"side":"turbo","kernels_sha256":"b4adce183d1387d49b3ddd1d5952072d1d3cb0d433b93e76842fe9756f880a87","device":"Apple M2","schema":2,"schedule":"single","input_dtype":"float16","accumulator_dtype":"float32","weight_layout":"contiguous-n-k","warmup":1,"times":20}

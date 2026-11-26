@@ -341,7 +341,7 @@ enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
     NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
     GEMM_H32N32 = GEMM_H128 + 4, GEMM_H64N32 = GEMM_H32N32 + 4, GEMM_H32N32A = GEMM_H64N32 + 4,
-    GEMM_SMALL_H = GEMM_H32N32A + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128, ATTENTION_HR128, DEBERTA_EMBED,
+    GEMM_H64N32A = GEMM_H32N32A + 4, GEMM_SMALL_H = GEMM_H64N32A + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128, ATTENTION_HR128, DEBERTA_EMBED,
     DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP, ROTARY_EMBED, LAYER_NORM_INTO, PACK_ROWS, QUANTIZE_INT8, QUANTIZE_UBINARY,
     SPAN_HEAD, KERNELS
 };
@@ -354,6 +354,7 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "gemm_h32n32_ff",   "gemm_h32n32_fh",  "gemm_h32n32_hf",  "gemm_h32n32_hh",
     "gemm_h64n32_ff",   "gemm_h64n32_fh",  "gemm_h64n32_hf",  "gemm_h64n32_hh",
     "gemm_h32n32a_ff",  "gemm_h32n32a_fh", "gemm_h32n32a_hf", "gemm_h32n32a_hh",
+    "gemm_h64n32a_ff",  "gemm_h64n32a_fh", "gemm_h64n32a_hf", "gemm_h64n32a_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16",
     "attention_h128",   "attention_hr128", "deberta_embed",  "deberta_layer_norm_rows", "deberta_relative",
     "deberta_attention", "lstm_project",   "lstm_step",       "rotary_embed",    "layer_norm_into", "pack_rows", "quantize_int8", "quantize_ubinary",
@@ -1555,8 +1556,10 @@ constexpr uint32_t SPREAD = 128;
 constexpr uint32_t SMALL_TOKENS = 128, SMALL_TOKENS_F16 = 64;
 
 /* linear=auto's tile: h32n32's 32 x 32 up to this many packed tokens,
- * where more threadgroups fill the GPU, and 64 x 64 above it (on the
- * M2). */
+ * where more threadgroups fill the GPU, and above it h64n32's 64 x 32
+ * where it runs without range checks (whole 64-row tiles, n and k
+ * multiples of 32), else the 32 x 32's form without them, else the
+ * 64 x 64 (on the M2, docs/metal.md). */
 constexpr uint32_t AUTO_H32_TOKENS = 1024;
 
 /* The packed tokens a batch of `tokens` can take, rounded up to a
@@ -2125,10 +2128,13 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         const bool small = tokens <= (f16 ? SMALL_TOKENS_F16 : SMALL_TOKENS) && n_out % 16 == 0;
         // A layer in F32 runs the F32 kernels' 32 x 64 tile whatever the
         // session's F16 choice.
-        const Linear tile = !f16                        ? LINEAR_F32
-                            : s.linear != LINEAR_AUTO   ? s.linear
-                            : tokens <= AUTO_H32_TOKENS ? LINEAR_H32N32
-                                                        : LINEAR_H64;
+        const bool whole = n_out % 32 == 0 && n_in % 32 == 0;
+        const Linear tile = !f16                          ? LINEAR_F32
+                            : s.linear != LINEAR_AUTO     ? s.linear
+                            : tokens <= AUTO_H32_TOKENS   ? LINEAR_H32N32
+                            : whole && tokens % 64 == 0   ? LINEAR_H64N32
+                            : whole                       ? LINEAR_H32N32
+                                                          : LINEAR_H64;
         const uint32_t bm = tile == LINEAR_H128 ? 128 : tile == LINEAR_H64 || tile == LINEAR_H64N32 ? 64 : 32;
         const uint32_t bk = f16 ? 32 : 16, bn = f16 && (tile == LINEAR_H32N32 || tile == LINEAR_H64N32) ? 32 : 64;
         const uint32_t tiles = (n_out + bn - 1) / bn * ((tokens + bm - 1) / bm);
@@ -2139,9 +2145,9 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         }
         const uint32_t kchunk = (uint32_t)round_up((n_in + splits - 1) / splits, bk);
         splits = (n_in + kchunk - 1) / kchunk;
-        // Whole 32 x 32 tiles and whole k steps in every split: the
-        // 32 x 32 tile's form without range checks, the same bits.
-        const bool aligned = tokens % 32 == 0 && n_out % 32 == 0 && n_in % 32 == 0 && kchunk % 32 == 0;
+        // Whole tiles and whole k steps in every split: the 32 x 32 and
+        // 64 x 32 tiles' forms without range checks, the same bits.
+        const bool aligned = tokens % bm == 0 && whole && kchunk % 32 == 0;
         const GemmParams p{tokens, n_out, n_in, epilogue, splits, kchunk, hd, rope_sin};
         int kernel = small ? GEMM_SMALL : GEMM;
         if (f16) {
@@ -2149,7 +2155,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             kernel = (small                     ? GEMM_SMALL_H
                       : tile == LINEAR_H128 ? GEMM_H128
                       : tile == LINEAR_H32N32 ? (aligned ? GEMM_H32N32A : GEMM_H32N32)
-                      : tile == LINEAR_H64N32 ? GEMM_H64N32
+                      : tile == LINEAR_H64N32 ? (aligned ? GEMM_H64N32A : GEMM_H64N32)
                       : tile == LINEAR_H64  ? GEMM_H64
                                             : GEMM_H32) +
                      types;
