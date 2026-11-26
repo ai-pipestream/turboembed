@@ -416,6 +416,10 @@ stubs must be regenerated.
 
 ### Changed
 
+- Metal at FASTEST: past 1024 packed tokens `linear=auto` runs the 64 x 32
+  F16 tile without range checks, in MLX's loop form; on the M2 a run of
+  all-minilm-l6-v2 at 16 x 128 to 32 x 256 takes 0.85 to 0.88 of the time,
+  the same bits (#812, docs/metal.md).
 - `AnalyzeDocumentProgressive`: in a request with `turbo:gliner`,
   `turbo-geo:names` writes the `places` instance of `turbo:entities` and
   GLiNER the default, so both run in one request; without GLiNER the

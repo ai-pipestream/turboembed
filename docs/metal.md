@@ -438,15 +438,17 @@ columns apart, loaded lane by lane from threadgroup memory as F32, with
 the weights staged as they lie, so nothing is transposed on the way;
 `linear=h64n32` the 64 x 32 tile in the same way, each group four
 fragments down and two across, the shape MLX runs a half "nt" product in
-on a small Apple GPU (The 64 x 32 tile, below; the tuner times it, and
-`auto` does not run it).
+on a small Apple GPU (The 64 x 32 tile, below).
 `linear=auto` picks per run: the 32 x 32 tile up to 1024 packed tokens,
-where its extra threadgroups fill the GPU, and the 64 x 64 tile above.
+where its extra threadgroups fill the GPU; above, the 64 x 32 tile where
+the packed tokens are a multiple of 64 and n and k of 32, else the 32 x 32
+tile where n and k are multiples of 32, else the 64 x 64 tile (The 64 x 32
+tile without range checks, below).
 On the M2 (all-minilm-l6-v2, six alternating rounds, FASTEST against
 main's `auto`, which ran the 32 x 64 tile up to 1024 tokens) the 32 x 32
 tile takes 13.8% off a run at 1 x 128 tokens, 8.8% at 2 x 128, 7.2% at
 4 x 128 and 8.5% at 8 x 128; from 2048 tokens up it was level with or
-slower than the 64 x 64 tile, so `auto` keeps that there. All are F16
+slower than the 64 x 64 tile, which `auto` then kept there. All are F16
 operands with F32 sums (`TURBO_NUMERIC_F16_F32ACC`); the tile can change
 how many parts a small layer's k is split into, so a different choice
 moves the bits within FASTEST's floor.
@@ -730,7 +732,9 @@ both ways (0.33x to 3.4x) with the desktop's use of the GPU, so they
 settle nothing. So the tile MLX picks
 does not close the gap to MLX's rate measured above: whatever MLX's
 kernels do differently, it is not the tile's shape. The tuner times
-`h64n32` with the others and keeps it only where it wins.
+`h64n32` with the others and keeps it only where it wins. What MLX does
+differently is in its loop, not its tile (The 64 x 32 tile without range
+checks, below).
 
 ### The 32 x 32 tile without range checks
 
@@ -748,6 +752,56 @@ the median of each round's 40 shapes, in rounds where the load ranged
 from under 4 to 55; the 16 pairs taken on a quiet host and GPU are all
 under 1, median 0.936. About 6% off the tile that `auto` runs up to
 1024 tokens.
+
+### The 64 x 32 tile without range checks
+
+`gemm_hna` runs the 32 x 32 and 64 x 32 tiles where m is a whole
+multiple of the tile's rows and n and k of 32. It stages each operand
+from one pointer stepped along k rather than one per row, keeps its
+indices short, holds the SIMD groups together (`simdgroup_barrier`)
+between each step's loads and products, and visits a group's fragments
+in a serpentine, as MLX's steel GEMM does. The sums are the same in the
+same order (`core/tests/metal_aligned.rs` holds `h32n32` and `h64n32`,
+each aligned and checked, to the 32 x 64 tile's bits). `linear=auto` now
+runs the 64 x 32 form past 1024 packed tokens. Receipt:
+`docs/receipts/metal-hna-812/`, on the M2 at `7ef2d86d` against main
+`7755201f`, MLX 0.29.3.
+
+MLX's own nt kernel for the M2 (`steel_gemm_fused_nt_float16_float16_bm64_bn32_bk32_wm2_wn2`
+from its `mlx.metallib`), dispatched on our `[n, k]` weights in the same
+process and timed on the GPU as ours (`docs/receipts/metal-hna-812/drivers/mlx_kernel_sweep.swift`,
+three rounds of the 16 shapes at 4096 and 16384 tokens, 20 runs each,
+the kernels interleaved): the 64 x 32 form takes 0.978 to 1.115 of MLX's
+GPU time, median 1.031, and the 32 x 32 form 1.020 to 1.159, median
+1.075. Both write the same bits as MLX's kernel at every shape. Bare
+mode against main's `auto` (64 x 64 there), three rounds, median of the
+medians: 0.80 to 0.92 of main's GPU time at 4096 and 16384 tokens
+(`docs/receipts/metal-hna-812/gemm/summary.md`).
+
+End to end, all-minilm-l6-v2 dense rows at FASTEST, `turbo-bench record
+--warmup 5 --iterations 20` with MLX float16 in each record, five rounds,
+main and this tree alternating first by round (1-minute load 1.7 to 2.7,
+GPU 0 to 6% busy before each run); median p50 / least p50 in ms:
+
+| Rows | main | this tree | this / main | MLX float16 | main / MLX | this / MLX |
+|---|---|---|---|---|---|---|
+| 32 x 256 | 99.04 / 98.46 | 87.44 / 87.33 | 0.883 | 101.08 / 100.92 | 0.980 | 0.865 |
+| 32 x 128 | 45.17 / 45.02 | 38.70 / 38.70 | 0.857 | 44.49 / 44.45 | 1.015 | 0.870 |
+| 16 x 128 | 23.58 / 23.49 | 20.06 / 20.05 | 0.851 | 22.44 / 22.39 | 1.051 | 0.894 |
+| 8 x 128 | 10.83 / 10.81 | 10.75 / 10.73 | 0.993 | 11.68 / 11.66 | 0.928 | 0.921 |
+| 4 x 128 | 6.05 / 5.99 | 5.97 / 5.95 | 0.987 | 6.31 / 6.28 | 0.959 | 0.947 |
+| 2 x 128 | 3.55 / 3.44 | 3.54 / 3.51 | 0.997 | 3.74 / 3.69 | 0.949 | 0.946 |
+| 1 x 128 | 2.30 / 2.30 | 2.29 / 2.12 | 0.993 | 2.49 / 2.45 | 0.924 | 0.917 |
+| 1 x 32 | 1.30 / 1.29 | 1.29 / 1.20 | 0.996 | 2.00 / 1.95 | 0.648 | 0.646 |
+
+FASTEST now leads MLX float16 at every size here, 32 x 128 and 16 x 128
+included. From 2048 tokens up the gain is the 64 x 32 form; up to 1024
+tokens `auto` runs the 32 x 32 form as before, now with the same loop,
+within 1% of main. The lowest cosine with the bundle's reference is
+unchanged (0.9999996), and the real-bundle check
+(`docs/receipts/metal-hna-812/kernels-check.log`)
+gives every tile the same distance from the CPU as before (1 - cosine
+1.965e-6 for all-minilm-l6-v2, 4.635e-6 for bge-base-en-v1.5).
 
 ### MLX as a recorded reference
 
