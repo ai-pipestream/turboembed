@@ -23,6 +23,7 @@ use turbo_analysis_embed::{
 };
 use turbo_analysis_layers::{Sentences, Subwords, Vectors};
 
+mod dispatch_settings;
 mod held_out;
 use held_out::held_out;
 mod paired;
@@ -317,23 +318,24 @@ fn the_shape_predicted_is_the_shape_run() {
 /// itself timed at the start of each set (see `paired::window`). Pairs too
 /// noisy to read are timed again, up to ATTEMPTS sets; then all of them are
 /// read at once (see `paired::pooled`), and a submission still too noisy is
-/// reported inconclusive; with TURBO_TEST_REQUIRE_HAILO set to anything but
-/// 0, an inconclusive submission fails the run.
+/// reported inconclusive. A nonempty TURBO_TEST_REQUIRE_HAILO other than 0
+/// requires both inputs and fixed Hailo execution, and rejects inconclusive timings.
 /// Prints each side's middle and spread, what dispatch adds, the window,
 /// every set of pairs, and the inconclusive submissions.
 #[test]
 fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
-    let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
+    let required = turbo_pins::device_required(&["hailo"]);
+    let bundle = std::env::var("TURBO_TEST_VECTORS_BUNDLE").ok();
+    let want = std::env::var("TURBO_TEST_DEVICE").ok();
+    let Some((bundle, want)) =
+        dispatch_settings::inputs(bundle.as_deref(), want.as_deref(), required).unwrap_or_else(|why| panic!("{why}"))
     else {
         println!("skipped: TURBO_TEST_VECTORS_BUNDLE and TURBO_TEST_DEVICE are not both set");
         return;
     };
-    let bundle = turbo_pins::require(&bundle);
+    let bundle = turbo_pins::require(bundle);
     let bundle = bundle.as_path();
-    let device = match want.parse() {
-        Ok(i) => Device::Index(i),
-        Err(_) => Device::Backend(want),
-    };
+    let device = want.parse().map_or_else(|_| Device::Backend(want.into()), Device::Index);
     let o = CalibrationOptions {
         device: device.clone(),
         precision: Precision::Model,
@@ -362,6 +364,12 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
             // Each side fixed: the very instances the dispatch runs on, so
             // what the dispatched times add to them is the dispatch alone.
             let (on_device, on_cpu) = (step(bundle, d.on(Side::Device).clone()), step(bundle, d.on(Side::Cpu).clone()));
+            if let Some(backend) = required {
+                for (_, execution) in run(&on_device, &sentence) {
+                    dispatch_settings::check_execution(&execution, backend).unwrap_or_else(|why| panic!("{why}"));
+                    println!("{max_seq}x{cap} fixed device execution: {execution}");
+                }
+            }
             for (what, sub, reps) in submissions {
                 let got = run(&a, sub);
                 let side = &got[0].1;
@@ -485,8 +493,7 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
     }
     println!("inconclusive\t{}\t{}", inconclusive.len(), inconclusive.join(", "));
     std::fs::remove_dir_all(&dir).unwrap();
-    let require = turbo_pins::device_required(&["hailo"]).is_some();
-    if let Err(why) = settle(&inconclusive, require) {
+    if let Err(why) = settle(&inconclusive, required.is_some()) {
         panic!("{why}");
     }
 }
