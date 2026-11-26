@@ -9,8 +9,9 @@
 //! the demo has no JSON front end (tree/front_end.rs), the v1-172 NPU
 //! README describes its committed cut reports (tree/cut_reports.rs), the
 //! evaluation records are clean text (tree/eval_records.rs),
-//! every committed Rust file is built by something (tree/orphans.rs), and no
-//! function is written twice inside one crate (tree/duplicates.rs).
+//! every committed Rust file is built by something (tree/orphans.rs), no
+//! function is written twice inside one crate (tree/duplicates.rs), and every
+//! committed Rust file is under 500 lines (tree/line_limit.rs).
 
 mod common;
 #[path = "tree/cut_reports.rs"]
@@ -23,6 +24,8 @@ mod duplicates;
 mod eval_records;
 #[path = "tree/front_end.rs"]
 mod front_end;
+#[path = "tree/line_limit.rs"]
+mod line_limit;
 #[path = "tree/opennlp.rs"]
 mod opennlp;
 #[path = "tree/orphans.rs"]
