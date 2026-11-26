@@ -15,6 +15,7 @@ use turbo_analysis::Span;
 use crate::entry::{GazetteerEntry, GeoPoint};
 use crate::gazetteer::Gazetteer;
 use crate::ranking::feature_rank;
+use crate::record::Record;
 use crate::store::Entry;
 
 pub use self::annotator::{DEFAULT_LOCATION_TYPE, GeocodeAnnotator, Locations};
@@ -125,15 +126,16 @@ impl GeoResolution {
 /// descending, feature class rank (`CITY` < `ADMIN` < `POI` < other), source
 /// in code point order, and record id in code point order.
 pub fn by_prior_view(a: &Entry<'_>, b: &Entry<'_>) -> Ordering {
-    b.population()
-        .cmp(&a.population())
-        .then_with(|| feature_rank(a.feature_class()).cmp(&feature_rank(b.feature_class())))
-        .then_with(|| a.source().cmp(b.source()))
-        .then_with(|| a.record_id().cmp(b.record_id()))
+    by_prior(a, b)
 }
 
 /// Compares two owned [`GazetteerEntry`] records by `CandidateRanking.BY_PRIOR`.
 pub fn by_prior_entry(a: &GazetteerEntry, b: &GazetteerEntry) -> Ordering {
+    by_prior(a, b)
+}
+
+/// `CandidateRanking.BY_PRIOR` over either kind of record.
+fn by_prior<R: Record>(a: &R, b: &R) -> Ordering {
     b.population()
         .cmp(&a.population())
         .then_with(|| feature_rank(a.feature_class()).cmp(&feature_rank(b.feature_class())))

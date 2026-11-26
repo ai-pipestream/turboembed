@@ -1,11 +1,11 @@
 """Time a command N times and write a throughput receipt.
 
 Usage: throughput_receipt.py OUT.json SENTENCES [--runs N]
-       [--output FILE] -- CMD...
+       [--output FILE] [--path NAME=DIR]... -- CMD...
 
 Runs CMD N times (default 20, the full receipt form of #1606),
 timing each run's wall clock and reading /proc/loadavg before and
-after it, and writes one JSON receipt: the exact command, the git
+after it, and writes one JSON receipt: the command, the git
 commit of the current directory and its working-tree state (dirty
 or not, with SHA-256 digests of `git status --porcelain` and of
 `git diff HEAD`, so a run from uncommitted sources is disclosed as
@@ -28,6 +28,17 @@ that exits nonzero stops the receipt: partial timing lists are not
 written. Receipts are only comparable at like host load, which is
 why every run's 1-minute load average is recorded rather than
 summarized away.
+
+A receipt is published, so it holds no directory of the machine
+that made it. The command runs as given; in the recorded copy each
+host directory the tool knows is written as a placeholder: the
+host side of a docker bind mount (`-v DIR:/gold:ro` is recorded as
+`-v <gold-dir>:/gold:ro`, named after the directory it has in the
+container), DIR of every `--path NAME=DIR` as `<NAME>`, and the
+directory of an absolute --output FILE that neither covers as
+`<output-dir>`. `output_file` is recorded the same way. A host
+path in the command that is none of these is recorded as given:
+name it with --path.
 """
 
 import hashlib
@@ -87,6 +98,60 @@ def file_sha256(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 
+def mount(spec):
+    """The host and the container directory of a docker bind mount
+    `HOST:CONTAINER[:OPTIONS]`, or None for a named volume, which
+    is no path of the host."""
+    parts = spec.split(":")
+    if len(parts) >= 3 and not parts[-1].startswith("/"):
+        parts = parts[:-1]
+    if len(parts) < 2:
+        return None
+    host, container = ":".join(parts[:-1]), parts[-1]
+    if "/" not in host and "\\" not in host:
+        return None
+    return host, container
+
+
+def host_dirs(cmd, named, output):
+    """Each host directory the receipt is told of, with the
+    placeholder that is recorded in its place."""
+    dirs = dict(named)
+    specs = [cmd[i + 1] for i, a in enumerate(cmd[:-1]) if a in ("-v", "--volume")]
+    specs += [a[len("--volume="):] for a in cmd if a.startswith("--volume=")]
+    for found in filter(None, map(mount, specs)):
+        host, container = found
+        name = container.strip("/").replace("/", "-") or "root"
+        dirs.setdefault(host, f"<{name}-dir>")
+    if output is not None and os.path.isabs(output) and recorded(output, dirs) == output:
+        dirs[os.path.dirname(output)] = "<output-dir>"
+    return dirs
+
+
+def recorded(text, dirs):
+    """`text` with each directory of `dirs` written as its
+    placeholder, where it stands as a whole path or the start of
+    one: after no path character, and before the end, a separator
+    or the colon of a mount."""
+    def part_of_a_name(c):
+        return c.isalnum() or c in "_.-/\\"
+
+    for host in sorted(dirs, key=len, reverse=True):
+        stem = host.rstrip("/\\")
+        if not stem:
+            continue
+        out, at = [], 0
+        while (found := text.find(stem, at)) >= 0:
+            end = found + len(stem)
+            whole = (found == 0 or not part_of_a_name(text[found - 1])) and (
+                end == len(text) or text[end] in "/\\:"
+            )
+            out.append(text[at:found] + (dirs[host] if whole else stem))
+            at = end
+        text = "".join(out) + text[at:]
+    return text
+
+
 def summarize(seconds):
     ordered = sorted(seconds)
     return {
@@ -106,13 +171,19 @@ def main():
     rest = args[2:]
     runs = 20
     output = None
-    while rest[:1] in (["--runs"], ["--output"]):
+    named = {}
+    while rest[:1] in (["--runs"], ["--output"], ["--path"]):
         if len(rest) < 2:
             raise SystemExit(__doc__)
         if rest[0] == "--runs":
             runs = int(rest[1])
-        else:
+        elif rest[0] == "--output":
             output = rest[1]
+        else:
+            name, equals, directory = rest[1].partition("=")
+            if not (name and equals and directory):
+                raise SystemExit(f"--path {rest[1]}: expected NAME=DIR")
+            named[directory] = f"<{name}>"
         rest = rest[2:]
     if rest[:1] != ["--"] or len(rest) < 2:
         raise SystemExit(__doc__)
@@ -139,9 +210,10 @@ def main():
         timed.append(entry)
         print(f"run {i + 1}/{runs}: {seconds:.3f}s", file=sys.stderr, flush=True)
     stats = summarize([t["seconds"] for t in timed])
+    dirs = host_dirs(cmd, named, output)
     receipt = {
         "schema": SCHEMA,
-        "command": cmd,
+        "command": [recorded(arg, dirs) for arg in cmd],
         "commit": tree["commit"],
         "working_tree": {
             "dirty": tree["dirty"],
@@ -149,7 +221,7 @@ def main():
             "diff_sha256": tree["diff_sha256"],
         },
         "sentences_per_run": sentences,
-        "output_file": output,
+        "output_file": None if output is None else recorded(output, dirs),
         "runs": timed,
         "seconds": stats,
         "sentences_per_second_at_p50": sentences / stats["p50"],

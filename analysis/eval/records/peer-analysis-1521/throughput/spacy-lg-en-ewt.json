@@ -7,9 +7,9 @@
     "--network",
     "none",
     "-v",
-    "/work/ud-data:/gold:ro",
+    "<gold-dir>:/gold:ro",
     "-v",
-    "/tmp/spacy-lg-tp:/out",
+    "<out-dir>:/out",
     "turbo-peer-spacy:3.8.7-lg-3.8.0",
     "/gold/en_ewt-ud-test.conllu",
     "/out/spacy-lg.conllu",
@@ -22,7 +22,7 @@
     "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "sentences_per_run": 2077,
-  "output_file": "/tmp/spacy-lg-tp/spacy-lg.conllu",
+  "output_file": "<out-dir>/spacy-lg.conllu",
   "runs": [
     {
       "seconds": 4.2212849450006615,

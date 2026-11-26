@@ -1,7 +1,7 @@
 //! Deterministic payload fingerprints (`Layer::content_hash`) for the shared
 //! segmentation and syntax layers.
 
-use turbo_analysis::Fnv1a;
+use turbo_analysis::{Fnv1a, Tag, TagSet};
 
 use crate::words::WordOrTokenAnchor;
 use crate::{
@@ -120,25 +120,31 @@ impl Chunks {
     }
 }
 
+/// The fingerprint of a tag per token with its optional probabilities,
+/// the payload of [`PosTags`] and of [`ChunkTags`].
+fn tags_hash(tagset: &TagSet, tags: &[Tag], prob: Option<&[f64]>) -> u64 {
+    let mut h = Fnv1a::new();
+    h.u64(tagset.content_hash()).usize(tags.len());
+    for &t in tags {
+        h.u16(t.0);
+    }
+    match prob {
+        None => {
+            h.u8(0);
+        }
+        Some(prob) => {
+            h.u8(1);
+            for &p in prob {
+                h.f64(p);
+            }
+        }
+    }
+    h.finish()
+}
+
 impl PosTags {
     pub(crate) fn payload_hash(&self) -> u64 {
-        let mut h = Fnv1a::new();
-        h.u64(self.tagset.content_hash()).usize(self.tags.len());
-        for &t in &self.tags {
-            h.u16(t.0);
-        }
-        match &self.prob {
-            None => {
-                h.u8(0);
-            }
-            Some(prob) => {
-                h.u8(1);
-                for &p in prob {
-                    h.f64(p);
-                }
-            }
-        }
-        h.finish()
+        tags_hash(&self.tagset, &self.tags, self.prob.as_deref())
     }
 }
 
@@ -187,23 +193,7 @@ impl Entities {
 
 impl ChunkTags {
     pub(crate) fn payload_hash(&self) -> u64 {
-        let mut h = Fnv1a::new();
-        h.u64(self.tagset.content_hash()).usize(self.tags.len());
-        for &t in &self.tags {
-            h.u16(t.0);
-        }
-        match &self.prob {
-            None => {
-                h.u8(0);
-            }
-            Some(prob) => {
-                h.u8(1);
-                for &p in prob {
-                    h.f64(p);
-                }
-            }
-        }
-        h.finish()
+        tags_hash(&self.tagset, &self.tags, self.prob.as_deref())
     }
 }
 

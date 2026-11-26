@@ -2,8 +2,6 @@
 //! ([`SentencePolarityAnnotator`]) polarity annotators combining VADER
 //! (`LexiconSentiment`) and learned [`PolarityVectorScorer`] heads.
 
-use std::hash::{Hash, Hasher};
-
 use turbo_analysis::{Annotator, Error, Ix, IxRange, Layer, ModelRef, Refs, Tag, View};
 use turbo_analysis_layers::{Categories, Dependencies, Opinions, Polarity, PolarityScores, Sentences, Tokens, Vectors};
 use turbo_normalize_layers::Emoji;
@@ -255,14 +253,7 @@ impl Annotator for PolarityAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = crate::hash::FoldHasher::default();
-        self.stage.hash(&mut h);
-        self.head_weight.to_bits().hash(&mut h);
-        Annotator::config_hash(&self.lexicon).hash(&mut h);
-        if let Some(scorer) = &self.vector_scorer {
-            scorer.config_hash().hash(&mut h);
-        }
-        h.finish()
+        super::combined_config_hash(self.stage, &self.lexicon, self.vector_scorer.as_deref(), self.head_weight)
     }
 }
 
@@ -387,14 +378,7 @@ impl Annotator for SentencePolarityAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = crate::hash::FoldHasher::default();
-        self.stage.hash(&mut h);
-        self.head_weight.to_bits().hash(&mut h);
-        Annotator::config_hash(&self.lexicon).hash(&mut h);
-        if let Some(scorer) = &self.vector_scorer {
-            scorer.config_hash().hash(&mut h);
-        }
-        h.finish()
+        super::combined_config_hash(self.stage, &self.lexicon, self.vector_scorer.as_deref(), self.head_weight)
     }
 }
 
