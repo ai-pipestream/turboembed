@@ -82,11 +82,11 @@ pub fn pooled(pairs: &[(f64, f64)], own: &[(f64, f64)]) -> Option<(f64, f64, f64
     (gap <= WIDEST * fixed).then(|| (middle(&pairs.iter().map(|(x, y)| x - y).collect::<Vec<_>>()), fixed, gap))
 }
 
-/// Whether a run with these inconclusive submissions passes. A run under
-/// TURBO_TEST_REQUIRE_HAILO=1 is evidence that dispatch adds no more than
-/// the planning and the board's window, and a submission left inconclusive after
-/// ATTEMPTS sets is a gap in that evidence: the run fails and names each
-/// one. Without it they are only reported.
+/// Whether a run with these inconclusive submissions passes. A run with
+/// TURBO_TEST_REQUIRE_HAILO set to anything but 0 is evidence that dispatch
+/// adds no more than the planning and the board's window, and a submission
+/// left inconclusive after ATTEMPTS sets is a gap in that evidence: the run
+/// fails and names each one. Without it they are only reported.
 pub fn settle(inconclusive: &[String], require: bool) -> Result<(), String> {
     if require && !inconclusive.is_empty() {
         return Err(format!(

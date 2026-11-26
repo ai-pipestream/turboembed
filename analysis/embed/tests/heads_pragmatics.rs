@@ -170,17 +170,8 @@ fn pragmatics_annotator_combines_incongruity_emoji_and_embedding_head() {
     assert!(p3.score < 0.35, "expected low score on literal sentence 3, got {}", p3.score);
     assert!(p3.evidence.is_none());
 
-    // When TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_CUDA=1 is set, verify CPU vs GPU parity.
-    let want = match std::env::var("TURBO_TEST_DEVICE") {
-        Ok(w) => Some(w),
-        Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1") => Some("cuda".to_string()),
-        Err(_) => None,
-    };
-    if let Some(want) = want {
-        let device = match want.parse() {
-            Ok(i) => Device::Index(i),
-            Err(_) => Device::Backend(want.clone()),
-        };
+    // On the device TURBO_TEST_DEVICE names, the annotator agrees with the CPU.
+    if let Some((want, device)) = device::named_device() {
         let dev_opts = VectorOptions {
             encoder: EncoderOptions { device, max_seq: 64, ..EncoderOptions::default() },
             ..VectorOptions::default()
@@ -216,5 +207,7 @@ fn pragmatics_annotator_combines_incongruity_emoji_and_embedding_head() {
                 dev_item.score
             );
         }
+    } else {
+        println!("device half skipped: TURBO_TEST_DEVICE names no device");
     }
 }

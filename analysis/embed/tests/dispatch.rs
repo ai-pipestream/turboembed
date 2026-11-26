@@ -317,8 +317,8 @@ fn the_shape_predicted_is_the_shape_run() {
 /// itself timed at the start of each set (see `paired::window`). Pairs too
 /// noisy to read are timed again, up to ATTEMPTS sets; then all of them are
 /// read at once (see `paired::pooled`), and a submission still too noisy is
-/// reported inconclusive; under
-/// TURBO_TEST_REQUIRE_HAILO=1 an inconclusive submission fails the run.
+/// reported inconclusive; with TURBO_TEST_REQUIRE_HAILO set to anything but
+/// 0, an inconclusive submission fails the run.
 /// Prints each side's middle and spread, what dispatch adds, the window,
 /// every set of pairs, and the inconclusive submissions.
 #[test]
@@ -485,7 +485,7 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
     }
     println!("inconclusive\t{}\t{}", inconclusive.len(), inconclusive.join(", "));
     std::fs::remove_dir_all(&dir).unwrap();
-    let require = std::env::var("TURBO_TEST_REQUIRE_HAILO").as_deref() == Ok("1");
+    let require = turbo_pins::device_required(&["hailo"]).is_some();
     if let Err(why) = settle(&inconclusive, require) {
         panic!("{why}");
     }

@@ -37,18 +37,14 @@ pub struct EncoderMascEval {
 
 pub fn eval_encoder_on_masc(
     bundle_path: &Path,
-    use_cuda: bool,
+    device: Device,
     m_train: &[(String, usize)],
     m_test: &[(String, usize)],
     lexicon: &LexiconSentiment,
 ) -> EncoderMascEval {
     let bundle_path = turbo_pins::require(bundle_path);
     let o = VectorOptions {
-        encoder: EncoderOptions {
-            device: if use_cuda { Device::Backend("cuda".into()) } else { Device::Cpu },
-            max_seq: 64,
-            ..EncoderOptions::default()
-        },
+        encoder: EncoderOptions { device, max_seq: 64, ..EncoderOptions::default() },
         ..VectorOptions::default()
     };
     let vec_ann = Arc::new(
