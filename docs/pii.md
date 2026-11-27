@@ -1381,6 +1381,23 @@ What was kept instead (#2398):
   beside it. A first refit without the same name in both roles per
   document lost three city uses after `from` and `to` and was dropped.
 
+The real-head gate for #2410 loads both measured bundles by manifest
+digest. Set `TURBO_NEMOTRON_PII_BUNDLE` to the catalog head (version 1)
+and `TURBO_NEMOTRON_PII_REFIT_BUNDLE` to the refitted candidate (version
+2), then run:
+
+```sh
+cargo test --locked -p turbo-tagger --test pii_shared_name_sentences -- --ignored --nocapture
+```
+
+The gate checks the head alone and the head with Places. With Places,
+the refit must keep at least seven of the eight city subjects reported in
+#2410 and beat the catalog bundle on those eight, not just on the larger
+22-sentence set. Neither false nor missed cities may increase on either
+of the first two person memos. The 20 standalone **person** sentences are
+a different control: the catalog head gets 10 and the refit gets 9. A
+passing gate records that tradeoff; it does not promote the refit.
+
 Without the head, a policy that needs
 higher precision on person-heavy text can leave `city` out and keep
 `state` and `county`.
