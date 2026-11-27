@@ -175,14 +175,11 @@ pub fn run_modernbert() {
     ));
     let corpus = load(&root);
     assert!(corpus.len() >= 20, "expected at least 20 usable MASC documents, got {}", corpus.len());
-    let use_cuda = std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1");
+    // The encoder runs on the device TURBO_TEST_DEVICE names, and on the CPU when it names none.
+    let device = super::device::named_device().map_or(Device::Cpu, |(_, device)| device);
     let subwords = SubwordAnnotator::open(&bundle).unwrap();
     let options = VectorOptions {
-        encoder: EncoderOptions {
-            device: if use_cuda { Device::Backend("cuda".into()) } else { Device::Cpu },
-            max_seq: 512,
-            ..EncoderOptions::default()
-        },
+        encoder: EncoderOptions { device, max_seq: 512, ..EncoderOptions::default() },
         ..VectorOptions::default()
     };
     let vectors = Arc::new(VectorAnnotator::open(&bundle, &options).unwrap());

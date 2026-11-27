@@ -445,8 +445,8 @@ terms and are not committed to the repository.
   held-out set that recombines the training aspect and opinion words (so it
   checks generalisation across sentences, not across vocabulary), checking
   that both annotators write the same `(Opinions, Aspects)` layer types with
-  distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
-  `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
+  distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE`)
+  outputs agree within `1e-5`.
 
 ### Trained MASC aspect head and external evaluation (`#924`, `#1732`)
 
@@ -1002,7 +1002,7 @@ incivility rules and fixtures use the repository licence.
   `IncivilityAnnotator` end to end with lexicon matching, embedding-head
   scoring, and reply-context conflict detection, verifies that every positive
   prediction carries a non-empty `IxRange<Tokens>` evidence span, and checks
-  that CPU and a device (`TURBO_TEST_DEVICE` / `TURBO_TEST_REQUIRE_CUDA=1`)
+  that CPU and a device (`TURBO_TEST_DEVICE`)
   agree within `1e-5` with identical evidence spans. The one sentence the
   head must catch without a lexicon hit ("Outsiders have no right to
   participate in our civic institutions.") is in the head's eight training

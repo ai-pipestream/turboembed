@@ -2,7 +2,10 @@
 //! `LabelCentroids` and `ClassifierHead` (#321) on a self-contained
 //! benchmark, and on MASC 3.0.0 MPQA opinions (`CC BY 3.0 US`) when
 //! `TURBO_MASC_ROOT` names the corpus' `data` directory and
-//! `TURBO_MINILM_BUNDLE` a pinned all-MiniLM-L6-v2 bundle.
+//! `TURBO_MINILM_BUNDLE` a pinned all-MiniLM-L6-v2 bundle. The MASC
+//! encoders run on the device `TURBO_TEST_DEVICE` names, and on the CPU
+//! when it names none; a `TURBO_TEST_REQUIRE_<BACKEND>` variable does not
+//! choose the device.
 
 mod heads_support;
 
@@ -187,7 +190,8 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
         assert!(samples.len() >= 200, "expected >= 200 MASC MPQA samples, got {}", samples.len());
         let split = (samples.len() * 4) / 5;
         let (m_train, m_test) = samples.split_at(split);
-        let use_cuda = std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1");
+        // The encoders run on the device TURBO_TEST_DEVICE names, and on the CPU when it names none.
+        let device = device::named_device().map_or(Device::Cpu, |(_, device)| device);
 
         let lex_preds: Vec<Polarity> = m_test
             .iter()
@@ -204,7 +208,7 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
             .count();
 
         let minilm_eval = minilm_path.as_deref().map(|p| {
-            let ev = masc_polarity::eval_encoder_on_masc(p, use_cuda, m_train, m_test, &lexicon);
+            let ev = masc_polarity::eval_encoder_on_masc(p, device.clone(), m_train, m_test, &lexicon);
             let count_ok = |preds: &[Polarity]| {
                 m_test
                     .iter()
@@ -239,7 +243,7 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
         });
 
         if let Some(mod_path) = modernbert_path.as_deref() {
-            let mod_ev = masc_polarity::eval_encoder_on_masc(mod_path, use_cuda, m_train, m_test, &lexicon);
+            let mod_ev = masc_polarity::eval_encoder_on_masc(mod_path, device.clone(), m_train, m_test, &lexicon);
             let count_ok = |preds: &[Polarity]| {
                 m_test
                     .iter()
