@@ -218,3 +218,39 @@ dev checks are unchanged.
 cargo run --locked --release -p turbo-trainer-recipes --example pii_contrast_mix -- \
   "$PUBLISHER_CORPUS" "$REFIT_HEAD_SPEC"
 ```
+
+### Matched contrast pilot result (rejected)
+
+The bounded CPU comparison ran the preregistered fit at
+`4c8ea58186bfacf4b3f099a807517647c74002ac`. Both selected epoch 6
+and wrote 6,201,308-byte head files. SHA-256:
+
+- Control: `3130d49ed775838a4107f0fb463ec63904a4189ebcde8dec5e10d53b282e71c6`
+- Candidate: `cdf1b3cbb4bb5819611042a758bf2dcada5dba184592e251d4a79b660fb4d063`
+
+| Dev set and exact-span F1 | Control | Candidate |
+| --- | ---: | ---: |
+| Publisher micro | 0.5725 | 0.5709 |
+| Publisher city | 0.6787 | 0.6715 |
+| Publisher first name | 0.8778 | 0.8740 |
+| Publisher last name | 0.8270 | 0.8158 |
+| Publisher company name | 0.7712 | 0.7635 |
+| Historical synthetic city | 0.8617 | 0.5505 |
+| Historical synthetic first name | 0.8594 | 0.6547 |
+| New name- and template-disjoint dev city | 0.3730 | 0.3460 |
+| New dev first name | 0.2140 | 0.2979 |
+| New dev multiword surname | 0.0000 | 0.0000 |
+| New dev company name | 0.0259 | 0.0516 |
+
+The new-dev four-role macro rose by 0.0207, but city fell and neither
+arm matched any of the 600 exact multiword surname spans. The candidate
+predicted more surname spans (710 vs 404) without getting an exact
+match. Every publisher target class and both historical paired classes
+fell. The command exited 2 as designed: three dev checks failed and
+`holdout_scored` was false. Neither head was calibrated, assembled,
+promoted, or evaluated on the reserved corpus, short sentences or memos.
+
+This rejects the tested generator and replacement, not the general
+hypothesis that token-matched contrasts could improve the model. The
+document count matched but the synthetic loss weight did not. No
+token-budget confirmation was run after this rejection.
