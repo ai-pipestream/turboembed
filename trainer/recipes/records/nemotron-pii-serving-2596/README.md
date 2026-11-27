@@ -644,3 +644,51 @@ cargo run --locked --release -p turbo-trainer-recipes --example pii_warm_replay 
 cargo run --locked --release -p turbo-trainer-recipes --example pii_warm_replay -- \
   "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$CATALOG_BUNDLE" "$REPLAY_PLAN" --fit "$REPLAY_OUTPUT"
 ```
+
+### Warm-start replay result (rejected)
+
+Both arms trained from the verified catalog checkpoint at
+`ef8f7149133680a15f26d4c6b1d2f54675389a7d`, matched all 708
+updates and the exact word/BIO dose of all 532 supplemental rows.
+The plan digest was
+`688b889ae343bdf692fb0c5735834d6c61b05e22b4f25a034071e98e924b8ccf`.
+The CPU streaming process used about 2.8 GiB resident memory and
+finished both arms and the dev replay in about eight minutes. The
+reader's random-access fixture checks exact word alignment; the
+streaming optimizer's one-update test matches the existing batch
+optimizer bit-for-bit.
+
+| Publisher dev F1 | Catalog | Matched replay control | Targeted replay |
+| --- | ---: | ---: | ---: |
+| Micro | 0.6203 | 0.6344 | 0.6346 |
+| City | 0.7655 | 0.7733 | 0.7742 |
+| First name | 0.9125 | 0.9216 | 0.9220 |
+| Last name | 0.8857 | 0.8876 | 0.8878 |
+| Company name | 0.8279 | 0.8306 | 0.8306 |
+
+Most aggregate gain is shared by ordinary replay. Targeted replay
+gets one extra city and three fewer city false positives than the
+matched control, and city precision increases. But catalog city
+recall falls from 79.45% to 78.65%. Catalog first-name precision falls
+from 93.47% to 91.60%, surname precision from 88.53% to 88.11%, and
+company recall from 88.82% to 87.93%. Company loses three correct
+spans relative to the matched control. Each of the four independent
+P/R safeguards therefore fails despite higher overall F1. Neutral
+`al` surname false positives remain zero; false company predictions
+covering a gold first-name start fall from 139 to 95 (98 for
+matched control).
+
+Weights SHA-256 (experiment artifacts only, not promoted):
+
+- Matched control: `45f84dd844fe3ca9f57829a656e8e0569d6ba3308ddcbfe3d92a869b032bbab0`
+- Targeted replay: `6e4f3dbdabd1a07d7a03ac85472d3d536716c9d965730ac4028d35f85b328977`
+
+The command exited 2 at the preregistered gate. No calibration,
+packing, test corpus, reserved original city/person probes or memos
+were run for these heads. #2596 remains open; this does not recover
+the shipping constraints. Any further replay decision should target
+the actual P/R tradeoffs on independent, persona- and surface-separated
+calibration data, not rerun this experiment until an aggregate happens
+to improve. The published source has enough targeted rehearsal
+for a bounded test, but not evidence for the sparse common-name or
+unseen-particle cases.

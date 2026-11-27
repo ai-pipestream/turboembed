@@ -125,12 +125,12 @@ pub fn plan<R: Read + Seek>(rows: &[Sentence], reader: &mut Reader<R>, tagger: &
     for (i, row) in rows.iter().enumerate() {
         let f = supports[i];
         let (w, p) = signature(row);
-        for target in 0..TARGETS.len() {
+        for (target, &in_role) in f.iter().enumerate() {
             let well_matched = match target {
                 0 => gold[i].iter().any(|g| g.2 == "city"),
                 1 => gold[i].iter().any(|g| g.2 == "first_name"),
                 3 => w > p,
-                _ => f[target],
+                _ => in_role,
             };
             if well_matched {
                 controls.entry((w, p, target)).or_default().push(i);
