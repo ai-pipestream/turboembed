@@ -28,6 +28,17 @@ const HEADER: &str = "do not edit";
 pub const GENERATORS: &[(&str, &str, &str)] = &[
     ("turbo-encoding-gen", "analysis/encoding-gen/Cargo.toml", "analysis/encoding/src/tables/"),
     ("turbo-unicode-gen", "analysis/unicode-gen/Cargo.toml", "analysis/unicode/src/tables/"),
+    // The two below are tests that render one table each: the file is named whole.
+    (
+        "analysis/unicode/tests/jdk_sigma.rs",
+        "analysis/unicode/tests/jdk_sigma.rs",
+        "analysis/unicode/src/java/word_classes.rs",
+    ),
+    (
+        "analysis/fuzz/tests/confusables_17.rs",
+        "analysis/fuzz/tests/confusables_17.rs",
+        "analysis/fuzz/src/runs/confusables_17.rs",
+    ),
     (
         "analysis/sentdetect/tests/rules_tables.rs",
         "analysis/sentdetect/tests/rules_tables.rs",
@@ -39,19 +50,16 @@ pub const GENERATORS: &[(&str, &str, &str)] = &[
 
 /// Hand-kept data tables over the limit, each with what it holds (#2565).
 /// A table is one static of literals: there is no logic in it to split.
+/// These two have no source in the tree that a generator could read again.
 pub const DATA_TABLES: &[(&str, &str)] = &[
     (
         "analysis/encoding/src/detect/data.rs",
         "the byte classes and pair scores of chardetng 0.1.17, copied from its data file",
     ),
     (
-        "analysis/fuzz/src/runs/confusables_17.rs",
-        "the confusable mappings of Unicode 17.0.0 that differ from 18.0.0, written once from the two data files",
-    ),
-    ("analysis/pii/src/tables/tlds.rs", "the top-level domains of one IANA root zone snapshot"),
-    (
-        "analysis/unicode/src/java/word_classes.rs",
-        "the word classes of JDK 21, written from the ranges its probe test prints",
+        "analysis/pii/src/tables/tlds.rs",
+        "the top-level domains of one IANA root zone snapshot: IANA serves the current list only, \
+         under no stated licence, so no copy of its file is kept in the tree",
     ),
 ];
 

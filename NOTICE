@@ -75,6 +75,11 @@ tables generated from them, are used under the Unicode License v3.
 Copyright (c) 2001-2024 Unicode, Inc. The full license text is in
 analysis/unicode/ucd/LICENSE.
 
+The confusables.txt of Unicode 17.0.0 in
+analysis/fuzz/data/unicode-17.0.0/, and the table generated from it, are
+used under the same license. Copyright (c) 1991-2026 Unicode, Inc. The
+full license text is in analysis/fuzz/data/unicode-17.0.0/LICENSE.
+
 ------------------------------------------------------------------------
 ftfy, by Robyn Speer
 ------------------------------------------------------------------------
