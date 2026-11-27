@@ -417,6 +417,11 @@ mod tests {
         // round they are 0x3c2ba6cc and 0xe1928749, in other buckets.
         assert_eq!(features("ab", (2, 2), 1000), BTreeMap::from([(0x4d25_05ca % 1000, 1.0)]));
         assert_eq!(features("\u{e9}\u{65e5}", (2, 2), 1000), BTreeMap::from([(0xb2fc_b3a9 % 1000, 1.0)]));
+        // Both of those rise by code point, so a window sorted before it is
+        // hashed would give the same two values. These two fall: `ba` is
+        // 62 61 and U+65E5 U+00E9 is e6 97 a5 c3 a9, the other pair of hashes.
+        assert_eq!(features("ba", (2, 2), 1000), BTreeMap::from([(0x3c2b_a6cc % 1000, 1.0)]));
+        assert_eq!(features("\u{65e5}\u{e9}", (2, 2), 1000), BTreeMap::from([(0xe192_8749 % 1000, 1.0)]));
     }
 
     #[test]
