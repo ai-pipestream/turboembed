@@ -9,10 +9,18 @@ const BACKENDS: [&str; 3] = ["cuda", "levelzero", "metal"];
 /// The device `named` is (`cpu`, a backend, or the runtime's index of a
 /// device), and None when no device is named. A `required` backend does
 /// not choose the device: no name, the CPU and a device of another
-/// backend are each refused, with what to set.
+/// backend are each refused, with what to set. So is a backend with a
+/// number (`cuda:1`): a [`Device`] names a backend's first device or an
+/// index, and has no way to say that one.
 pub fn device_for(named: Option<&str>, required: Option<&str>) -> Result<Option<Device>, String> {
     turbo_pins::check_test_device(named, required)?;
-    Ok(named.map(|name| match name.parse() {
+    let Some(name) = named else { return Ok(None) };
+    if let Some((backend, _)) = name.split_once(':') {
+        return Err(format!(
+            "TURBO_TEST_DEVICE={name}: a head test picks a backend's first device ({backend}) or a device index"
+        ));
+    }
+    Ok(Some(match name.parse() {
         Ok(index) => Device::Index(index),
         Err(_) if name == "cpu" => Device::Cpu,
         Err(_) => Device::Backend(name.to_owned()),
