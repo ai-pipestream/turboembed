@@ -10,6 +10,7 @@ use std::sync::Arc;
 use common::*;
 use turbo_kserve::Serve;
 use turbo_kserve::catalog::Catalog;
+use turbo_kserve::proto::result::{DeviceBackend, DeviceName};
 use turbo_kserve::proto::training::turbo_catalog_service_client::TurboCatalogServiceClient;
 use turbo_kserve::proto::training::*;
 use turbo_kserve_demo::{Allow, Options};
@@ -165,7 +166,7 @@ async fn a_bundle_loads_for_the_demos_user() {
         name: name.into(),
         bundle: bundle.to_str().unwrap().into(),
         sessions: 1,
-        device: cpu(),
+        device_name: Some(DeviceName { backend: DeviceBackend::Cpu as i32, ordinal: 0 }),
         user: "mallory".into(),
         ..Default::default()
     };

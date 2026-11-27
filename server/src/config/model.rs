@@ -3,13 +3,34 @@
 use super::refused::{MODEL_SETTINGS, number, refused};
 use crate::api::names;
 
-/// Where the model runs.
+/// Where the model runs (crate::device::resolve).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device {
-    /// A runtime device index, for turbo_context_create.
+    /// A runtime index the server already resolved, used as it is.
     Index(u32),
-    /// The index turbo_runtime_select gives for TURBO_TASK_EMBED.
+    /// A runtime index as the caller wrote it (`device=N`): refused when
+    /// a backend linked ahead of its device lists none, as it has moved.
+    Position(u32),
+    /// A device by its backend and its ordinal there (`cuda:0`, `cpu`).
+    Named(crate::device::Named),
+    /// The index turbo_runtime_select gives for the bundle's task.
     Select,
+}
+
+impl Device {
+    /// One `device=` value: `select`, a device name or a runtime index.
+    pub fn parse(v: &str) -> Result<Device, String> {
+        if v == "select" {
+            return Ok(Device::Select);
+        }
+        if let Some(n) = crate::device::Named::parse(v) {
+            return Ok(Device::Named(n));
+        }
+        if !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()) {
+            return number("device", v).map(Device::Position);
+        }
+        Err(refused("--model device", v, crate::device::ACCEPTED))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,10 +77,7 @@ impl ModelConfig {
                     }
                     name.replace(v.to_string()).is_some()
                 }
-                "device" => {
-                    let d = if v == "select" { Device::Select } else { Device::Index(number(k, v)?) };
-                    device.replace(d).is_some()
-                }
+                "device" => device.replace(Device::parse(v)?).is_some(),
                 "precision" => {
                     let p = names::PRECISION.iter().find(|(_, n)| *n == v).map(|(p, _)| *p).ok_or_else(|| {
                         refused("--model precision", v, "PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT")

@@ -14,7 +14,7 @@ use turbo_kserve::proto::result::{CapabilitiesRequest, RuntimeLogEntry};
 #[cfg(unix)]
 fn startup_lines() -> Vec<String> {
     use std::io::{BufRead, BufReader};
-    let model = format!("bundle={},device={},sessions=1", tiny().display(), cpu());
+    let model = format!("bundle={},device=cpu,sessions=1", tiny().display());
     let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve"))
         .args(["--listen", "127.0.0.1:0", "--model", &model])
         .stderr(std::process::Stdio::piped())
@@ -81,7 +81,7 @@ async fn a_closed_stderr_does_not_abort_the_server() {
         name: "tiny".into(),
         bundle: tiny().to_str().unwrap().into(),
         sessions: 1,
-        device: cpu(),
+        device_name: cpu_name(),
         ..Default::default()
     };
     let got = a.load_bundle(req).await;

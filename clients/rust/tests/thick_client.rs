@@ -52,7 +52,7 @@ impl Drop for TestServerGuard {
 fn start_test_server(bearer: Option<&str>) -> TestServerGuard {
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let model = ModelConfig::parse(&format!(
-        "bundle={},name=tiny-bert-bundle,device=0,sessions=2",
+        "bundle={},name=tiny-bert-bundle,device=cpu,sessions=2",
         tiny_bundle_dir().display()
     ))
     .expect("parse ModelConfig");

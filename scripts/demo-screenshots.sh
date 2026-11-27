@@ -72,7 +72,7 @@ for scheme in light dark; do
     });')
   MODELS=()
   for b in "${BUNDLES[@]}"; do
-    MODELS+=(--model "bundle=$b,device=0,sessions=1${TURBO_SHOTS_MAX_SEQ:+,max_seq=$TURBO_SHOTS_MAX_SEQ}")
+    MODELS+=(--model "bundle=$b,device=cpu,sessions=1${TURBO_SHOTS_MAX_SEQ:+,max_seq=$TURBO_SHOTS_MAX_SEQ}")
   done
   "$RELEASE/turbo-kserve" --listen "127.0.0.1:$SERVER_PORT" --admin \
     --vocabulary-dir "$WORK/$scheme/vocabulary" --catalog-dir "$WORK/$scheme/catalog" \

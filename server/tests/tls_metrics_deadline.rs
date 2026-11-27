@@ -243,12 +243,13 @@ async fn prometheus_metrics_endpoint_exposes_all_server_metric_families() {
     c.load_bundle(LoadBundleRequest {
         name: "extra".into(),
         bundle: tiny().to_str().unwrap().to_string(),
-        device: cpu(),
+        device: 0,
         sessions: 1,
         precision: 0,
         max_batch: 0,
         max_seq: 0,
         select_device: false,
+        device_name: cpu_name(),
         user: String::new(),
         vocabulary: None,
     })

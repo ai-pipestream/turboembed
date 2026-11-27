@@ -21,8 +21,9 @@ use turbo_kserve::proto::result::analyze_stream_request::Kind;
 use turbo_kserve::proto::result::analyze_stream_response::Outcome;
 use turbo_kserve::proto::result::{
     AnalyzeDocument, AnalyzeOutput, AnalyzePipelineRequest, AnalyzeStreamHeader, AnalyzeStreamRequest,
-    CapabilitiesRequest, DocumentGraphResponse, InspectDocumentGraphRequest, LoadBundleRequest, ModelRef, OffsetMode,
-    OpenSpanSchema, ProcessingReceipt, VocabularyArtifactRef, VocabularyBinding,
+    CapabilitiesRequest, DeviceBackend, DeviceName, DocumentGraphResponse, InspectDocumentGraphRequest,
+    LoadBundleRequest, ModelRef, OffsetMode, OpenSpanSchema, ProcessingReceipt, VocabularyArtifactRef,
+    VocabularyBinding,
 };
 use turbo_kserve::proto::vocabulary::{DeleteVocabularyArtifactRequest, LearnVocabularyHeader};
 use turbo_kserve::results::document::codecs;
@@ -347,6 +348,7 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
         name: name.into(),
         bundle: bundle.to_str().unwrap().into(),
         sessions: 1,
+        device_name: Some(DeviceName { backend: DeviceBackend::Cpu as i32, ordinal: 0 }),
         vocabulary: Some(bundle_vocab.clone()),
         ..Default::default()
     };
@@ -456,6 +458,7 @@ async fn wrong_digest_unknown_id_wrong_format_and_no_store_are_refused_with_type
             name: "bad-bundle".into(),
             bundle: tiny_bundle_path().to_str().unwrap().into(),
             sessions: 1,
+            device_name: Some(DeviceName { backend: DeviceBackend::Cpu as i32, ordinal: 0 }),
             vocabulary: Some(vocab),
             ..Default::default()
         };

@@ -292,6 +292,7 @@ async fn load_bundle_preserves_structured_failure_codes_and_field_metadata() {
     if turbo_kserve::api::version().split_whitespace().skip(1).all(|b| b == "cpu") {
         let mut sel = load_req("auto-dev", &bundle, 1, 0);
         sel.device = 0;
+        sel.device_name = None;
         sel.select_device = true;
         let e = c.load_bundle(sel).await.expect_err("no non-CPU accelerator");
         assert_eq!(refusal(&e), (Code::FailedPrecondition, 1024));

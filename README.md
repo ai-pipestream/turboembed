@@ -309,7 +309,7 @@ cargo run --release -p turbo-bundle -- make \
     minishlab/potion-base-8M upstream/potion-base-8M bundles/potion-base-8M
 cargo build --release -p turbo-kserve             # add --features cuda for CUDA
 target/release/turbo-kserve --listen 127.0.0.1:8081 \
-    --model bundle=bundles/potion-base-8M,device=0,sessions=2
+    --model bundle=bundles/potion-base-8M,device=cpu,sessions=2
 ```
 
 `scripts/setup/check.sh` reports what a machine is missing for each

@@ -26,6 +26,7 @@ wait_healthy() {
 }
 # The environment changes both processes, without a custom health command.
 docker run -d --name "$name" --health-interval=1s \
+  -e TURBO_KSERVE_BUNDLE_DEVICE=cpu \
   -e TURBO_KSERVE_LISTEN=0.0.0.0:9090 \
   -v "$PWD/testdata/tiny-bert-bundle:/bundles/tiny-bert-bundle:ro" "$image"
 wait_healthy
@@ -33,6 +34,7 @@ docker exec "$name" turbo-kserve health --addr 127.0.0.1:9090 --service tiny-ber
 cleanup
 # The CLI changes only the server; the documented command changes the probe.
 docker run -d --name "$name" --health-interval=1s \
+  -e TURBO_KSERVE_BUNDLE_DEVICE=cpu \
   --health-cmd='turbo-kserve health --addr 127.0.0.1:9091' \
   -v "$PWD/testdata/tiny-bert-bundle:/bundles/tiny-bert-bundle:ro" \
   "$image" --listen 0.0.0.0:9091

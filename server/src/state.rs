@@ -358,10 +358,9 @@ impl State {
         };
         let c = &m.config;
         let select_task = crate::tasks::peek_task(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
-        let device = match c.device {
-            crate::config::Device::Index(i) => i,
-            crate::config::Device::Select => rt.select(select_task).map_err(fail("turbo_runtime_select", &[]))?,
-        };
+        let call =
+            if c.device == crate::config::Device::Select { "turbo_runtime_select" } else { "turbo_context_create" };
+        let device = crate::device::resolve(rt, c.device, select_task).map_err(fail(call, &[]))?;
         let ctx = {
             let mut contexts = self.contexts.lock().unwrap_or_else(|e| e.into_inner());
             if !contexts.iter().any(|(d, _)| *d == device) {

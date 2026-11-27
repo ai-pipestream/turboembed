@@ -78,8 +78,8 @@ kernels give the same bits. `scripts/setup/cpu.sh` says which set runs.
   kernels: about half the weights' size again, shared by the model's
   sessions.
 - `turbo_runtime_select` never picks a CPU, so in a CPU-only build it
-  returns `TURBO_E_DEVICE_NOT_FOUND`: name the CPU's device index
-  instead (with the gRPC server, `device=0`).
+  returns `TURBO_E_DEVICE_NOT_FOUND`: name the CPU
+  instead (with the gRPC server, `device=cpu`).
 
 ## Serving
 

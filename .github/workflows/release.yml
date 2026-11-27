@@ -376,7 +376,7 @@ jobs:
   # The turbo-kserve images (docs/release.md, Images): cpu for amd64 and
   # arm64, each built on a runner of its own architecture, and cuda for
   # amd64. Every build is run and has to turn healthy with the tiny bundle
-  # mounted (the cuda one runs its cpu backend: the runners have no GPU);
+  # mounted on an explicit cpu device: these runners have no GPU;
   # the amd64 cpu one also embeds the bundle's reference texts over gRPC
   # to its reference vectors. A tag pushes each by digest, and
   # image-manifest names them by the version.
@@ -413,6 +413,7 @@ jobs:
           echo "user $user"
           if [ "$user" != "10001:10001" ]; then echo "the image runs as $user, not 10001:10001"; exit 1; fi
           docker run -d --name smoke -p 127.0.0.1:8081:8081 \
+            -e TURBO_KSERVE_BUNDLE_DEVICE=cpu \
             -v "$PWD/testdata/tiny-bert-bundle:/bundles/tiny-bert-bundle:ro" turbo-kserve:ci
           for _ in $(seq 90); do
             health="$(docker inspect -f '{{.State.Health.Status}}' smoke)"
@@ -529,7 +530,7 @@ jobs:
         run: |
           cargo build --locked --release -p turbo-kserve
           target/release/turbo-kserve --listen 127.0.0.1:18089 \
-            --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2 &
+            --model bundle=testdata/tiny-bert-bundle,device=cpu,sessions=2 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
           for _ in $(seq 60); do

@@ -150,6 +150,25 @@ pub(crate) fn relation_capabilities(
     }
 }
 
+/// A request's device name as the loader's, refusing an unset backend.
+fn named(n: &crate::proto::result::DeviceName) -> Result<crate::device::Named, Failure> {
+    use crate::proto::result::DeviceBackend;
+    let backend = match DeviceBackend::try_from(n.backend) {
+        Ok(DeviceBackend::Cpu) if n.ordinal == 0 => "cpu",
+        Ok(DeviceBackend::Cuda) => "cuda",
+        Ok(DeviceBackend::Levelzero) => "levelzero",
+        Ok(DeviceBackend::Metal) => "metal",
+        Ok(DeviceBackend::Hailo) => "hailo",
+        Ok(DeviceBackend::Npu) => "npu",
+        Ok(DeviceBackend::Cpu) => return Err(bad("device_name: the CPU is ordinal 0")),
+        Ok(DeviceBackend::Unspecified) | Err(_) => {
+            let msg = format!("device_name.backend {}: not a DEVICE_BACKEND_* other than UNSPECIFIED", n.backend);
+            return Err(Failure::new(TURBO_E_INVALID_ENUM, 0, msg));
+        }
+    };
+    Ok(crate::device::Named { backend, ordinal: n.ordinal })
+}
+
 /// The LoadBundle request as the configuration the loader takes,
 /// refusing what a request cannot mean. The name, when empty, is the
 /// bundle path's last component, exactly as a startup `--model` names it.
@@ -181,13 +200,14 @@ pub(crate) fn load_config(req: &LoadBundleRequest) -> Result<(String, ModelConfi
             format!("precision {}: not PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT", req.precision),
         ));
     }
-    let device = if req.select_device {
-        if req.device != 0 {
-            return Err(bad("device: cannot set both select_device and a non-zero device index"));
+    let device = match (&req.device_name, req.select_device) {
+        (Some(_), true) => return Err(bad("device_name: cannot set both select_device and device_name")),
+        (Some(_), false) | (None, true) if req.device != 0 => {
+            return Err(bad("device: cannot set a non-zero device index with select_device or device_name"));
         }
-        Device::Select
-    } else {
-        Device::Index(req.device)
+        (Some(n), false) => Device::Named(named(n)?),
+        (None, true) => Device::Select,
+        (None, false) => Device::Position(req.device),
     };
     Ok((
         name,
@@ -219,6 +239,7 @@ mod tests {
             max_batch: 0,
             max_seq: 0,
             select_device: false,
+            device_name: None,
             user: String::new(),
             vocabulary: None,
         }

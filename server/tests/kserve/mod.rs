@@ -28,6 +28,12 @@ pub fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle")
 }
 
+/// The CPU by name, for a LoadBundle request (#2508).
+pub fn cpu_name() -> Option<turbo_kserve::proto::result::DeviceName> {
+    use turbo_kserve::proto::result::{DeviceBackend, DeviceName};
+    Some(DeviceName { backend: DeviceBackend::Cpu as i32, ordinal: 0 })
+}
+
 /// The runtime index of the CPU.
 pub fn cpu() -> u32 {
     let rt = Runtime::create().unwrap();

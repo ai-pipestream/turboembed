@@ -310,9 +310,9 @@ bundle under one name per tier (docs/grpc.md, Flags):
 
 ```
 target/release/turbo-kserve --listen 127.0.0.1:8081 \
-    --model bundle=/models/bge-small-en-v1.5,device=0,sessions=2 \
-    --model name=bge-small-fastest,bundle=/models/bge-small-en-v1.5,device=0,sessions=2,precision=PRECISION_FASTEST \
-    --model name=bge-small-exact,bundle=/models/bge-small-en-v1.5,device=0,sessions=2,precision=PRECISION_EXACT
+    --model bundle=/models/bge-small-en-v1.5,device=cpu,sessions=2 \
+    --model name=bge-small-fastest,bundle=/models/bge-small-en-v1.5,device=cpu,sessions=2,precision=PRECISION_FASTEST \
+    --model name=bge-small-exact,bundle=/models/bge-small-en-v1.5,device=cpu,sessions=2,precision=PRECISION_EXACT
 ```
 
 Then the demo:

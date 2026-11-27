@@ -352,7 +352,9 @@ message LoadBundleRequest
   // The bundle directory (docs/bundle.md).
   string bundle = 2;
 
-  // A runtime device index (docs/grpc.md, Device indices).
+  // A runtime device index (docs/grpc.md, Device names and indices). Refused with
+  // DEVICE_NOT_FOUND when a backend linked ahead of its device lists
+  // none, as its number has moved; `device_name` names one device instead.
   uint32 device = 3;
 
   // Sessions the model pools; at least 1.
@@ -369,6 +371,11 @@ message LoadBundleRequest
   // instead of indexing `device` (must leave `device` at 0).
   bool select_device = 11;
 
+  // The device by its backend and its ordinal there, instead of `device`
+  // (which must be left at 0) or `select_device`. DEVICE_NOT_FOUND when
+  // the runtime lists no such device; the model never loads elsewhere.
+  optional DeviceName device_name = 14;
+
   // Who loads the bundle. On a server with a model catalog
   // (--catalog-dir), a bundle whose manifest names a licence that needs
   // acceptance (docs/zoo.md) loads only for a user who accepted it in the
@@ -381,6 +388,26 @@ message LoadBundleRequest
   // vocabulary store (--vocabulary-dir) before the bundle is registered
   // and bound as defaults for requests against it (#2013).
   optional VocabularyBinding vocabulary = 13;
+}
+
+// A device's backend, as turbo_device_info.backend names it.
+enum DeviceBackend
+{
+  DEVICE_BACKEND_UNSPECIFIED = 0;
+  DEVICE_BACKEND_CPU = 1;
+  DEVICE_BACKEND_CUDA = 2;
+  DEVICE_BACKEND_LEVELZERO = 3;
+  DEVICE_BACKEND_METAL = 4;
+  DEVICE_BACKEND_HAILO = 5;
+  DEVICE_BACKEND_NPU = 6;
+}
+
+// One device: its backend and its ordinal within that backend (the CPU
+// is ordinal 0).
+message DeviceName
+{
+  DeviceBackend backend = 1;
+  uint32 ordinal = 2;
 }
 
 message LoadBundleResponse

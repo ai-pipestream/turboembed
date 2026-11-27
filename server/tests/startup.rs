@@ -231,7 +231,7 @@ async fn a_text_over_the_sessions_max_seq() {
 #[test]
 fn the_binary_stops_on_sigterm() {
     use std::io::{BufRead, BufReader};
-    let model = format!("bundle={},device={},sessions=1", tiny().display(), cpu());
+    let model = format!("bundle={},device=cpu,sessions=1", tiny().display());
     let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve"))
         .args(["--listen", "127.0.0.1:0", "--model", &model])
         .stderr(std::process::Stdio::piped())
@@ -270,7 +270,7 @@ fn the_binary_stops_on_sigterm() {
 #[test]
 fn the_binary_exits_on_a_load_failure() {
     let bundle = tiny().join("../no-such-bundle");
-    let model = format!("bundle={},device={},sessions=1", bundle.display(), cpu());
+    let model = format!("bundle={},device=cpu,sessions=1", bundle.display());
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve"))
         .args(["--listen", "127.0.0.1:0", "--model", &model])
         .output()
@@ -317,12 +317,13 @@ async fn admin_starts_empty_and_bundle_dir_loads_sealed_bundles() {
         .load_bundle(LoadBundleRequest {
             name: String::new(),
             bundle: tiny().to_str().unwrap().into(),
-            device: cpu(),
+            device: 0,
             sessions: 1,
             precision: 0,
             max_batch: 0,
             max_seq: 0,
             select_device: false,
+            device_name: cpu_name(),
             user: String::new(),
             vocabulary: None,
         })
@@ -336,20 +337,16 @@ async fn admin_starts_empty_and_bundle_dir_loads_sealed_bundles() {
     s.stop().await;
 
     // --bundle-dir and TURBO_KSERVE_BUNDLE_DIR discover testdata/tiny-bert-bundle
-    // from testdata/ and load it cleanly.
+    // from testdata/ and load it cleanly, on the --bundle-device named.
     let testdata = tiny().parent().unwrap().to_str().unwrap().to_string();
     let parsed = turbo_kserve::config::Args::parse_with(
-        ["--listen", "127.0.0.1:0", "--bundle-dir", &testdata].into_iter().map(String::from),
+        ["--listen", "127.0.0.1:0", "--bundle-dir", &testdata, "--bundle-device", "cpu"].into_iter().map(String::from),
         |_| None,
     )
     .unwrap();
     assert!(parsed.models.iter().any(|m| m.name() == Some(NAME)));
-    let only_tiny: Vec<ModelConfig> = parsed
-        .models
-        .into_iter()
-        .filter(|m| m.name() == Some(NAME))
-        .map(|m| ModelConfig { device: Device::Index(cpu()), ..m })
-        .collect();
+    let only_tiny: Vec<ModelConfig> = parsed.models.into_iter().filter(|m| m.name() == Some(NAME)).collect();
+    assert_eq!(only_tiny[0].device, Device::parse("cpu").unwrap());
     assert_eq!(only_tiny.len(), 1);
     let s = Server::start(at, only_tiny, MAX, Serve::default()).await.unwrap();
     s.load().await.unwrap();

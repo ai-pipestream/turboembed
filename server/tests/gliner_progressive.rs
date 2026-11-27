@@ -39,6 +39,7 @@ async fn serve_package(
             max_batch: 0,
             max_seq: 0,
             select_device: false,
+            device_name: None,
             user: String::new(),
             vocabulary: None,
         })
@@ -375,6 +376,7 @@ async fn serve_relation_models(
                 max_batch: 0,
                 max_seq: 0,
                 select_device: false,
+                device_name: None,
                 user: String::new(),
                 vocabulary: None,
             })

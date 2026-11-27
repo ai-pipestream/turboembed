@@ -34,7 +34,7 @@ images to GHCR ([release.md](release.md), Images).
 
 ```
 turbo-kserve --listen 0.0.0.0:8081 \
-    --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2
+    --model bundle=testdata/tiny-bert-bundle,device=cpu,sessions=2
 ```
 
 `testdata/tiny-bert-bundle/manifest.json` is the small test model the
@@ -328,7 +328,7 @@ Against a server of your own:
 
 ```
 turbo-kserve --listen 127.0.0.1:8081 \
-    --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2
+    --model bundle=testdata/tiny-bert-bundle,device=cpu,sessions=2
 cargo run -p turbo-example-docling --bin docling-client -- \
     run http://127.0.0.1:8081 examples/docling/data/report.docling.json
 python3 examples/docling/clients/python/docling_client.py 127.0.0.1:8081 \
@@ -353,8 +353,9 @@ heat tokens TokenDensity 6 5 7 7 6 6 5 6 5 6 7 7 6 8 6 6
 heat entities EntityDensity 0 0 0 1 0 1 1 1 0 0 0 2 0 0 0 0
 ```
 
-`device=0` is the CPU: the server's default device choice never picks
-it. `BLESS=1 cargo test -p turbo-example-docling` rewrites the seed and
+`device=0` is the CPU on a build with the cpu backend alone (name it
+`device=cpu` on any build): the server's default device choice never
+picks it. `BLESS=1 cargo test -p turbo-example-docling` rewrites the seed and
 both expected files, to be reviewed.
 
 ### What it does not show
