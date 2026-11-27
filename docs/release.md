@@ -104,10 +104,11 @@ version the archive's `BUILD` line names; a 12.x build needs a 525
 driver or newer.
 
 The npu backend opens the Level Zero loader (`libze_loader.so.1`) at
-run time, so a machine needs Intel's NPU driver package (which installs
-the loader) to find a device (docs/npu.md). A machine without the
-loader lists no npu device and keeps working on cpu, and on cuda when
-a driver is there.
+run time, so a machine needs the loader from its distribution and
+Intel's linux-npu-driver release (and access to `/dev/accel/accel0`,
+usually the `render` group) to find a device (docs/setup/intel-npu.md).
+A machine without the loader lists no npu device and keeps working on
+cpu, and on cuda when a driver is there.
 
 The CUDA machine code the archive carries is what `BUILD` lists, one
 architecture per NVIDIA generation from Turing (sm_75) up, and the PTX of

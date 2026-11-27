@@ -24,10 +24,11 @@ against the tree.
   version `BUILD` names (a 12.x build needs driver 525 or newer). A
   machine without a driver or an NVIDIA GPU lists no CUDA device and runs
   the CPU as usual.
-- The NPU backend needs the Intel NPU driver package, which installs the
-  Level Zero loader (`libze_loader.so.1`). The loader is opened at run
-  time; a machine without it lists no npu device and runs the CPU as
-  usual.
+- The NPU backend needs the Level Zero loader from the distribution
+  and Intel's linux-npu-driver release, and access to
+  `/dev/accel/accel0` (usually the `render` group); see
+  [intel-npu.md](intel-npu.md). The loader is opened at run time; a
+  machine without it lists no npu device and runs the CPU as usual.
 - The archive carries machine code for the architectures `BUILD` lists,
   one per NVIDIA generation from sm_75, and PTX for the newest.
 

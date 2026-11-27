@@ -341,9 +341,12 @@ each with its SHA-256 sum ([release.md](docs/release.md),
 | `turboembed-proto-v<version>.tar.gz` | none | the `server/proto/*.proto` definitions and `buf.yaml` |
 
 The NPU backend in the Linux x86_64 and Windows x86_64 archives opens the
-Level Zero loader at run time. A machine needs the Intel NPU driver
-package, which installs the loader, to find a device; without it the
-archive still runs on CPU.
+Level Zero loader at run time. On Windows the Intel NPU driver package
+installs the loader. On Linux the loader is the distribution's own
+package and the NPU driver is Intel's separate linux-npu-driver release,
+and the user needs access to `/dev/accel/accel0` (usually the `render`
+group); `docs/setup/intel-npu.md` has both. Without them the archive
+still runs on CPU.
 
 The release also carries the generated Java gRPC stubs
 (`ai.pipestream:turboembed-grpc`, a jar, sources jar and pom) and the

@@ -235,6 +235,14 @@ unsafe impl Send for Device {}
 /// hardware is there and every device had to be skipped. The result,
 /// an Err too, is found once and kept for the life of the process: a
 /// driver fixed underneath a running process is seen by the next one.
+/// Whether an accel device node is there at all. Absence means the
+/// machine has no NPU for the driver to fail on.
+#[cfg(target_os = "linux")]
+fn accel_node_present() -> bool {
+    std::fs::read_dir("/dev/accel")
+        .is_ok_and(|mut entries| entries.any(|e| e.is_ok_and(|e| e.file_name().to_string_lossy().starts_with("accel"))))
+}
+
 fn driver() -> Result<Option<&'static Driver>, &'static str> {
     static DRIVER: OnceLock<Result<Option<Driver>, String>> = OnceLock::new();
     crate::ze::opened(&DRIVER, Driver::open)
@@ -251,13 +259,19 @@ impl Driver {
             flags: ze::INIT_DRIVER_TYPE_FLAG_NPU,
         };
         let mut n = 0u32;
-        // No NPU driver is installed: nothing to list. UNINITIALIZED is
-        // a driver that is present and did not start (on Linux, no
-        // access to the accel node), which is not an empty machine.
+        // No NPU driver is installed: nothing to list. The loader also
+        // answers UNINITIALIZED when it has no driver of this type at
+        // all, which on Linux the device nodes tell apart from a driver
+        // that is present and did not start (no access to the accel
+        // node): no accel node, no NPU, and nothing to warn about.
         match unsafe { (api.init_drivers)(&mut n, std::ptr::null_mut(), &mut desc) } {
             0 if n > 0 => {}
             0 => return Ok(None),
             ze::RESULT_ERROR_UNINITIALIZED => {
+                #[cfg(target_os = "linux")]
+                if !accel_node_present() {
+                    return Ok(None);
+                }
                 return Err(
                     "npu: zeInitDrivers returned ZE_RESULT_ERROR_UNINITIALIZED. The loader is present and the driver \
                      did not initialize, which on Linux is no access to the accel device node, not an absent NPU"
