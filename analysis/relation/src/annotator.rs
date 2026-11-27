@@ -181,6 +181,8 @@ impl<A: WordOrTokenAnchor> RelationAnnotator<A> {
         let (mut subject, mut object, mut kind, mut score) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let mut edges: Vec<Edge<Entities, Entities>> = Vec::new();
         let mut path = Vec::with_capacity(max_pattern_steps);
+        // Built on the first pair, so a document with none pays nothing.
+        let mut paths = None;
         let by_sentence = crate::prepare::by_sentence(&entity_heads, &word_sentence, sentences.spans.len());
 
         for s in 0..entities.spans.len() as u32 {
@@ -195,7 +197,8 @@ impl<A: WordOrTokenAnchor> RelationAnnotator<A> {
                 if sh == oh {
                     continue;
                 }
-                let search = graph.shortest_path_into(sh, oh, path_cap, &mut path).map_err(|e| fail(e.to_string()))?;
+                let paths = paths.get_or_insert_with(|| graph.path_index());
+                let search = paths.shortest_path_into(sh, oh, path_cap, &mut path).map_err(|e| fail(e.to_string()))?;
                 work.arc_reads += search.arc_reads;
                 if !search.found {
                     continue;

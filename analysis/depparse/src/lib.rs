@@ -30,7 +30,8 @@ pub use annotator::{DependencyAnnotator, DependencyBackend};
 pub use context::{DependencyContextGenerator, ParserInput};
 pub use evaluation::{AttachmentScores, DependencyCrossValidator, DependencyEvaluator, DependencyParser};
 pub use graph::{
-    ArcDirection, DependencyArc, DependencyGraph, PathSearch, PathStep, ResolvedDependencyArc, ResolvedDependencyNode,
+    ArcDirection, DependencyArc, DependencyGraph, PathIndex, PathSearch, PathStep, ResolvedDependencyArc,
+    ResolvedDependencyNode,
 };
 pub use held_out::{EvaluationSubset, HeldOutEvaluation};
 pub use model::{DependencyModel, DependencyParserME};

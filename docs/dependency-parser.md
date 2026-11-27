@@ -30,9 +30,14 @@ layer `A`, optional `A::Pos` tags, and document `View` text into
 byte `Span`, `Utf16Span`, `CodePointSpan`, `Word<'a>`, and POS tag metadata.
 Path steps retain labels and `ToHead`/`ToDependent`
 directions. Separate trees have no connecting path. Invalid indexes return
-errors. Child, depth and tree-root indexes are built in O(n); tree connectivity is
-O(1), and ancestor/path queries take O(path length) (or O(max_len) when bounded
-via `shortest_path_into`). Projectivity uses an O(n²) crossing check including root arcs.
+errors. Child lookup uses an O(n) index built with the graph;
+`lowest_common_ancestor` and `shortest_path` take O(height + path length).
+For many path queries on one graph, `path_index` builds the depth and
+tree-root tables in O(n) once, apart from the graph, so building a graph
+costs no more than before: through it tree connectivity is O(1), and
+ancestor/path queries take O(path length) (or O(max_len) when bounded via
+`PathIndex::shortest_path_into`). Projectivity uses an O(n²) crossing check
+including root arcs.
 
 `to_layer` preserves tag IDs, tag-set name/order and unused labels. Layers
 store heads and relations, so text alignment travels in `DependencySample<A>`:
