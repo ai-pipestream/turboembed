@@ -1,6 +1,6 @@
-//! Linear scaling probe for `GrammarChecker` with dependency trees.
+//! Linear scaling probe for `GrammarChecker`, with and without dependency trees.
 //!
-//! Three measures, none of them wall-clock, so parallel `nextest` load cannot
+//! Four measures, none of them wall-clock, so parallel `nextest` load cannot
 //! cause false failures:
 //!
 //! - `dependency_lookup_scaling`: [`GrammarCheckWork`] counters on one long
@@ -9,8 +9,12 @@
 //!   (`src/quality/scaling_tests.rs` proves that with quadratic passes).
 //! - `many_sentence_scaling`: the same counters on many short sentences, which
 //!   covers the per-sentence index build.
-//! - `allocation_scaling`: bytes and calls seen by a counting allocator. This
-//!   does not depend on the checker reporting anything.
+//! - `no_dependency_subject_window_scaling`: the same counters on the long
+//!   sentence with no tree given, where every verb's subject is found by the
+//!   search that walks back over a bounded token window.
+//! - `allocation_scaling`: bytes and calls seen by a counting allocator, for
+//!   each of the three cases above. This does not depend on the checker
+//!   reporting anything.
 //!
 //! Use `dependency_lookup_wall_clock_timing` with `--ignored --nocapture` for manual timing.
 
@@ -115,7 +119,23 @@ fn build_many_sentence_fixture(count: usize) -> (Document, Sentences, Tokens, Po
 
 type Fixture = fn(usize) -> (Document, Sentences, Tokens, PosTags, Dependencies);
 
-fn work_by_size(label: &str, fixture: Fixture) -> Vec<(usize, GrammarCheckWork)> {
+/// Whether the checker is handed the fixture's dependency tree.
+#[derive(Clone, Copy)]
+enum Tree {
+    Given,
+    Withheld,
+}
+
+impl Tree {
+    fn of(self, deps: &Dependencies) -> Option<&Dependencies> {
+        match self {
+            Tree::Given => Some(deps),
+            Tree::Withheld => None,
+        }
+    }
+}
+
+fn work_by_size(label: &str, fixture: Fixture, tree: Tree) -> Vec<(usize, GrammarCheckWork)> {
     let checker = GrammarChecker::new();
     CLAUSE_COUNTS
         .iter()
@@ -123,9 +143,12 @@ fn work_by_size(label: &str, fixture: Fixture) -> Vec<(usize, GrammarCheckWork)>
             let (document, sentences, tokens, pos, deps) = fixture(count);
             let view = document.get::<View>().unwrap();
             let (diagnostics, work) =
-                checker.check_view_with_work(view, &sentences, &tokens, &pos, None, Some(&deps)).unwrap();
+                checker.check_view_with_work(view, &sentences, &tokens, &pos, None, tree.of(&deps)).unwrap();
             assert!(diagnostics.is_empty(), "expected clean fixture, got {} diagnostics", diagnostics.len());
-            assert!(work.dep_lookups >= count * 3, "every head is read at least once: {work:?}");
+            match tree {
+                Tree::Given => assert!(work.dep_lookups >= count * 3, "every head is read at least once: {work:?}"),
+                Tree::Withheld => assert_eq!(work.dep_lookups, 0, "no tree was given, so none can be read: {work:?}"),
+            }
             assert!(work.token_reads >= count * 3, "every token is read at least once: {work:?}");
             println!("{label} tokens={} token_reads={} dep_lookups={}", count * 3, work.token_reads, work.dep_lookups);
             (count * 3, work)
@@ -135,28 +158,41 @@ fn work_by_size(label: &str, fixture: Fixture) -> Vec<(usize, GrammarCheckWork)>
 
 #[test]
 fn dependency_lookup_scaling() {
-    let samples = work_by_size("one-sentence", build_multi_clause_fixture);
+    let samples = work_by_size("one-sentence", build_multi_clause_fixture, Tree::Given);
     GrammarCheckWork::check_linear_scaling(&samples).unwrap();
 }
 
 #[test]
 fn many_sentence_scaling() {
-    let samples = work_by_size("many-sentences", build_many_sentence_fixture);
+    let samples = work_by_size("many-sentences", build_many_sentence_fixture, Tree::Given);
+    GrammarCheckWork::check_linear_scaling(&samples).unwrap();
+}
+
+/// With no tree, each verb's subject comes from the search that walks back
+/// from the verb over a bounded token window. The long sentence has no
+/// punctuation to end that walk early, so every verb walks its whole window:
+/// a search with no bound would walk to the sentence start and grow
+/// quadratically here.
+#[test]
+fn no_dependency_subject_window_scaling() {
+    let samples = work_by_size("one-sentence-no-tree", build_multi_clause_fixture, Tree::Withheld);
     GrammarCheckWork::check_linear_scaling(&samples).unwrap();
 }
 
 #[test]
 fn allocation_scaling() {
     let checker = GrammarChecker::new();
-    for (label, fixture) in
-        [("one-sentence", build_multi_clause_fixture as Fixture), ("many-sentences", build_many_sentence_fixture)]
-    {
+    for (label, fixture, tree) in [
+        ("one-sentence", build_multi_clause_fixture as Fixture, Tree::Given),
+        ("many-sentences", build_many_sentence_fixture, Tree::Given),
+        ("one-sentence-no-tree", build_multi_clause_fixture, Tree::Withheld),
+    ] {
         let mut samples = Vec::new();
         for count in CLAUSE_COUNTS {
             let (document, sentences, tokens, pos, deps) = fixture(count);
             let view = document.get::<View>().unwrap();
             let (calls, bytes) = (CALLS.get(), BYTES.get());
-            let result = checker.check_view(view, &sentences, &tokens, &pos, None, Some(&deps)).unwrap();
+            let result = checker.check_view(view, &sentences, &tokens, &pos, None, tree.of(&deps)).unwrap();
             let (calls, bytes) = (CALLS.get() - calls, BYTES.get() - bytes);
             assert!(result.is_empty());
             println!("{label} tokens={} alloc_calls={calls} alloc_bytes={bytes}", count * 3);
