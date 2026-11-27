@@ -14,8 +14,8 @@ import java.util.Locale;
  * the start of the text (before a dash and a letter, a comma and a digit, a mark
  * and a letter, a danda, a percent sign, a letter, a digit) and only the answer
  * before it is read with a letter or a digit on either side. The jdk test of
- * turbo-unicode maps each signature to a word class and compares it with the
- * crate's table.
+ * turbo-unicode maps each signature to a word class, compares it with the
+ * crate's table and writes that table from the classes.
  */
 public final class WordClasses {
 
