@@ -31,41 +31,6 @@ use std::collections::HashSet;
 
 use crate::error::{Error, Result};
 
-/// Errors constructed by [`decode_as`] and [`parse_with`].
-pub trait XmlError {
-    /// A well-formedness or decoding failure at UTF-8 byte `offset`.
-    fn xml(offset: usize, message: &'static str) -> Self;
-    /// A refused character encoding from a byte-order mark or XML declaration.
-    fn xml_encoding(name: String) -> Self;
-}
-
-impl XmlError for Error {
-    fn xml(offset: usize, message: &'static str) -> Self {
-        Error::Xml { offset, message }
-    }
-
-    fn xml_encoding(name: String) -> Self {
-        Error::XmlEncoding(name.into_boxed_str())
-    }
-}
-
-/// A parser failure before it is given the caller's error type, so the
-/// helpers that cannot fail in a handler are compiled once here.
-#[derive(Debug)]
-pub(crate) struct Bad {
-    offset: usize,
-    message: &'static str,
-}
-
-impl Bad {
-    /// Only ever called to build an error, so it stays out of the hot
-    /// path's layout.
-    #[cold]
-    fn lift<E: XmlError>(self) -> E {
-        E::xml(self.offset, self.message)
-    }
-}
-
 /// One attribute of an element: its local name and its value with
 /// references resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,12 +40,12 @@ pub struct Attribute<'a> {
 }
 
 /// Receives the document's content in order.
-pub trait Handler<E = Error> {
+pub trait Handler {
     /// An element starts. `name` is its local name.
-    fn start_element(&mut self, name: &str, attributes: &[Attribute<'_>], offset: usize) -> std::result::Result<(), E>;
+    fn start_element(&mut self, name: &str, attributes: &[Attribute<'_>], offset: usize) -> Result<()>;
     /// An element ends (also called right after `start_element` for an
     /// empty-element tag).
-    fn end_element(&mut self, name: &str, offset: usize) -> std::result::Result<(), E>;
+    fn end_element(&mut self, name: &str, offset: usize) -> Result<()>;
     /// Character data inside the root element. One run of text may arrive
     /// in several calls.
     fn characters(&mut self, text: &str);
@@ -129,7 +94,7 @@ pub enum Names {
 
 /// Parses a decoded document, calling `handler` for its content with
 /// local names.
-pub fn parse<E: XmlError>(text: &str, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
+pub fn parse(text: &str, handler: &mut impl Handler) -> Result<()> {
     parse_with(text, Names::Local, handler)
 }
 
@@ -140,7 +105,7 @@ const SCANNED_ATTRIBUTES: usize = 16;
 mod decode;
 mod parser;
 mod text;
-pub use decode::{decode, decode_as};
+pub use decode::decode;
 pub use parser::parse_with;
 use text::*;
 #[cfg(test)]

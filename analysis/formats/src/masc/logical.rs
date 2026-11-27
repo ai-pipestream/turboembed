@@ -68,7 +68,7 @@ struct LogicalFile {
     open: Vec<usize>,
 }
 
-impl Handler<crate::xml::Error> for LogicalFile {
+impl Handler for LogicalFile {
     fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         match name {
             "region" => {
