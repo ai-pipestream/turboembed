@@ -173,7 +173,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: maven
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-proto-jdk17-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('clients/**/pom.xml', 'scripts/maven-ci.sh', 'scripts/package-proto-stubs.sh') }}
       # uv provides the build Python and the oldest one the wheel declares.
       - uses: astral-sh/setup-uv@v7
       - name: package proto archive and verify Java and Python client stubs against turbo-kserve
@@ -233,7 +236,7 @@ jobs:
       - name: the demo page in a browser against turbo-kserve
         if: steps.page.outputs.run
         run: bash scripts/e2e-web.sh
-      # setup-java saves its Maven cache after the job's ordinary steps.
+      # Remove failed transfers before the Maven cache post step.
       - name: keep transient Maven misses out of the saved cache
         if: always()
         run: scripts/maven-ci.sh clean-cache
@@ -548,46 +551,67 @@ jobs:
   # Both Java bridges consume the same pure API and conformance modules.
   # JNI runs on Java 21, then Panama on Java 25, against the same native library.
   java-jni:
-    if: github.event_name != 'push'
+    # A cold push to main seeds the cache for pull requests and merge groups.
+    # Warm pushes restore it without rebuilding or testing the Java clients.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/cache/restore@v4
+        id: maven-cache
+        with:
+          path: ~/.m2/repository
+          key: maven-ci-jni-jdk21-25-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('clients/**/pom.xml', 'scripts/maven-ci.sh') }}
+          lookup-only: ${{ github.event_name == 'push' }}
       - uses: dtolnay/rust-toolchain@stable
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
       - uses: Swatinem/rust-cache@v2
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         with:
           key: java-jni
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: actions/setup-java@v4
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         with:
           distribution: temurin
           java-version: "21"
-          cache: maven
       - name: libturbo exports the Java entry points
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         run: |
           cargo build --locked -p turbo
           nm -D --defined-only target/debug/libturbo.so | grep -c " Java_ai_pipestream_turboembed_jni_TurboJni_"
       - name: resolve the Java 21 Maven reactor with bounded retries
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         run: scripts/maven-ci.sh resolve -f clients/pom.xml -pl java-jni -am
       - name: shared API, conformance and JNI tests on Java 21
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         run: mvn -B -ntp -o -f clients/pom.xml -pl java-jni -am test
       - uses: actions/setup-java@v4
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         with:
           distribution: temurin
           java-version: "25"
-          cache: maven
       - name: resolve the Java 25 Maven reactor with bounded retries
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         run: scripts/maven-ci.sh resolve -f clients/pom.xml -pl java-panama -am
       - name: shared API, conformance and Panama tests on Java 25
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
         run: mvn -B -ntp -o -f clients/pom.xml -pl java-panama -am test
+      # Save one cache after both offline Maven test suites pass. Only main
+      # can seed a cache that later PR and merge-group refs can restore.
+      - name: keep transient Maven misses out of the saved cache
+        if: github.event_name != 'push' || steps.maven-cache.outputs.cache-hit != 'true'
+        run: scripts/maven-ci.sh clean-cache
+      - uses: actions/cache/save@v4
+        if: github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.maven-cache.outputs.cache-primary-key }}
       - name: the Android targets compile
+        if: github.event_name != 'push'
         run: |
           rustup target add aarch64-linux-android x86_64-linux-android
           cargo check --locked -p turbo --target aarch64-linux-android
           cargo check --locked -p turbo --target x86_64-linux-android
-      # Both setup-java steps save after the job's ordinary steps.
-      - name: keep transient Maven misses out of the saved cache
-        if: always()
-        run: scripts/maven-ci.sh clean-cache
 
   parity:
     # Skipped on pushes to main, as the shards are.

@@ -517,7 +517,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: maven
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-proto-jdk17-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('clients/**/pom.xml', 'scripts/maven-ci.sh', 'scripts/package-proto-stubs.sh') }}
       # uv provides the build Python and the oldest one the wheel declares.
       - uses: astral-sh/setup-uv@v7
       - name: build the server, package protos and client stubs, and smoke-test Java and Python clients
@@ -547,7 +550,7 @@ jobs:
           name: proto-and-stubs
           path: proto-stubs-dist/*
           if-no-files-found: error
-      # setup-java saves its Maven cache after the job's ordinary steps.
+      # Remove failed transfers before the Maven cache post step.
       - name: keep transient Maven misses out of the saved cache
         if: always()
         run: scripts/maven-ci.sh clean-cache
