@@ -200,6 +200,26 @@ fn selection_never_picks_a_cpu_and_says_why() {
 }
 
 #[test]
+fn selection_of_rerank_and_qa_never_picks_a_cpu() {
+    let rt = Rt::new();
+    for task in [TURBO_TASK_RERANK, TURBO_TASK_EXTRACTIVE_QA] {
+        let mut pick = 99u32;
+        let mut reason = [0 as c_char; 256];
+        let mut err = new_error();
+        let rc =
+            unsafe { turbo_runtime_select(rt.0, task, &mut pick, reason.as_mut_ptr(), reason.len() as u32, &mut err) };
+        if rc == 0 {
+            assert_ne!(rt.info(pick).unwrap().kind, TURBO_DEVICE_CPU, "task {task}: {}", s(&reason));
+        } else {
+            assert_eq!(rc, status::DEVICE_NOT_FOUND, "task {task}: {}", s(&err.message));
+            assert_eq!(pick, 99, "task {task}: out is untouched on failure");
+            assert!(s(&reason).contains("a CPU is never selected"), "task {task}: {}", s(&reason));
+            assert_eq!(s(&reason), s(&err.message));
+        }
+    }
+}
+
+#[test]
 fn device_info_is_read_at_query_time() {
     // The CPU device reports the host's free memory. On Linux this checks
     // that the figure is read from the host on each call rather than kept

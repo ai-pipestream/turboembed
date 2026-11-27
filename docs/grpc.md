@@ -125,7 +125,7 @@ itself.
 | Setting | Meaning | Absent |
 |---|---|---|
 | `bundle` | The bundle directory (docs/bundle.md). | Required. |
-| `device` | A runtime device index, or `select` for the device `turbo_runtime_select` picks for embedding. `select` never picks a CPU; on a host with no other device, name the CPU's index. | Required. |
+| `device` | A runtime device index, or `select` for the device `turbo_runtime_select` picks for the bundle's task. `select` never picks a CPU; on a host with no other device, name the CPU's index. | Required. |
 | `sessions` | How many sessions the model has. One request holds one; a request that finds none idle is refused at once with `UNAVAILABLE`, which a client may retry. | Required, at least 1. |
 | `name` | The model name requests use. | The last component of the bundle path. |
 | `precision` | The tier every session of this model runs at: `PRECISION_MODEL`, `PRECISION_FASTEST` or `PRECISION_EXACT` (docs/autotune.md). | `PRECISION_MODEL`. |
