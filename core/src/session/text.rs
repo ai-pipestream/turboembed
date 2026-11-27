@@ -229,7 +229,10 @@ pub unsafe extern "C" fn turbo_session_row_tokens(
             let state = s.lock()?;
             let rows = &state.row_tokens;
             if !state.text_rows {
-                return Err(Error::new(INVALID_STATE, "the session's last write was not turbo_embed_write_text"));
+                return Err(Error::new(
+                    INVALID_STATE,
+                    "the session's last write was not turbo_embed_write_text or turbo_rerank_write_pairs",
+                ));
             }
             if out.is_null() || count.is_null() {
                 return Err(Error::new(INVALID_ARGUMENT, "out or count is NULL"));

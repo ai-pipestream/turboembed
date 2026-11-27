@@ -156,7 +156,7 @@ pub struct turbo_result_info {
     pub tokenizer_sha256: [c_char; 72],
 }
 
-/// What turbo_embed_write_text made of one text (turbo.h).
+/// What a text or rerank query came to against its token budget (turbo.h).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct turbo_row_tokens {
@@ -216,10 +216,11 @@ struct State {
     /// with the session.
     ids: Vec<i32>,
     mask: Vec<i32>,
-    /// What the last turbo_embed_write_text made of each text, one per
-    /// row (turbo_session_row_tokens). `text_rows` says they are there:
-    /// set when that write succeeds, cleared when any write begins, and
-    /// kept across the run, so they stay readable until the next write.
+    /// What the last text or pair write made of each text or query, one
+    /// per row (turbo_session_row_tokens). `text_rows` says they are
+    /// there: set when that write succeeds, cleared when any write
+    /// begins, and kept across the run, so they stay readable until the
+    /// next write.
     row_tokens: Vec<turbo_row_tokens>,
     text_rows: bool,
     rerank: Option<rerank::PairBatch>,

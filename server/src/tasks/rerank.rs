@@ -54,6 +54,10 @@ pub(crate) fn infer_rerank(
     check_before_exec(deadline, &loaded.metrics)?;
     let slot = held.slot();
     slot.session.write_pairs(&pairs, &opts)?;
+    let query =
+        slot.session.row_tokens(pairs.len())?.first().copied().ok_or_else(|| {
+            Failure::new(TURBO_E_INTERNAL, 0, "rerank write returned no query token counts".to_string())
+        })?;
     check_before_exec(deadline, &loaded.metrics)?;
     loaded.metrics.record_batch_size(pairs.len());
     let result = slot.session.run()?;
@@ -72,12 +76,21 @@ pub(crate) fn infer_rerank(
         Failure::new(TURBO_E_INTERNAL, 0, format!("the result's dtype {} has no datatype in the protocol", info.dtype))
     })?;
     let vectors = Vectors { data, _result: result, _held: held };
+    let mut parameters = result_parameters(&info);
+    parameters.insert("query_tokens".into(), crate::kserve::int(query.kept as u64));
+    if query.seen_known != 0 {
+        parameters.insert("query_tokens_seen".into(), crate::kserve::int(query.seen as u64));
+    }
+    parameters.insert(
+        "truncated_query".into(),
+        InferParameter { parameter_choice: Some(ParameterChoice::BoolParam(query.truncated != 0)) },
+    );
 
     Ok(ModelInferResponse {
         model_name: served.name.clone(),
         model_version: loaded.revision.clone(),
         id: req.id,
-        parameters: result_parameters(&info),
+        parameters,
         outputs: vec![InferOutputTensor {
             name: "scores".to_string(),
             datatype: dt.to_string(),

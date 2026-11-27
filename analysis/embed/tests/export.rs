@@ -44,6 +44,7 @@ fn document() -> Document {
         items: vec![Ix::new(1), Ix::new(2)],
         scores: vec![0.9, -0.5],
         model: ModelRef { id: "m".into(), revision: "r".into(), sha256: "s".into() },
+        query_tokens: Some(turbo::turbo_row_tokens { kept: 4, seen: 20, seen_known: 1, truncated: 1 }),
     };
     doc.add(&Key::DEFAULT, reranked, p).unwrap();
     doc
@@ -65,6 +66,7 @@ fn qa_and_rerank_layers_round_trip() {
     let r = back.get::<Reranked<Sentences>>().unwrap();
     assert_eq!((r.items.clone(), r.scores.clone()), (vec![Ix::new(1), Ix::new(2)], vec![0.9, -0.5]));
     assert_eq!(r.model.sha256, "s");
+    assert_eq!(r.query_tokens.unwrap().seen, 20);
     assert_eq!(export(&back, &codecs).unwrap(), graph);
 }
 

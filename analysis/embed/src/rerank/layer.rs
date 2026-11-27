@@ -54,6 +54,8 @@ pub struct Reranked<L: Layer> {
     pub items: Vec<Ix<L>>,
     pub scores: Vec<f32>,
     pub model: ModelRef,
+    /// What the query came to against its token budget, when a run made one.
+    pub query_tokens: Option<turbo::turbo_row_tokens>,
 }
 impl<L: Layer> Layer for Reranked<L> {
     const ID: &'static str = "turbo:reranked";
@@ -76,6 +78,12 @@ impl<L: Layer> Layer for Reranked<L> {
         }
         if self.items.iter().map(|i| i.get()).collect::<BTreeSet<_>>().len() != self.items.len() {
             return Err("reranked items must be unique".into());
+        }
+        if let Some(t) = self.query_tokens
+            && t.seen_known != 0
+            && (t.kept > t.seen || t.truncated != u32::from(t.kept < t.seen))
+        {
+            return Err("rerank query token counts disagree".into());
         }
         Ok(())
     }

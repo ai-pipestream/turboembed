@@ -69,6 +69,21 @@ fn pair_budgets_segment_ids_and_overlap_cover_the_passage() {
 }
 
 #[test]
+fn query_truncation_is_reported_with_the_scores() {
+    let f = fixture();
+    let mut r = Reranker::open(&f.dir, 1).unwrap();
+    let query = "query ".repeat(20);
+    let got = r
+        .score(&[(query.as_str(), "a passage")], RerankOptions { query_tokens: 4, max_tokens: 32, stride: 0 })
+        .unwrap();
+    assert_eq!(got.query_tokens.len(), 1);
+    let tokens = got.query_tokens[0];
+    assert_eq!(tokens.truncated, 1);
+    assert!(tokens.seen > tokens.kept, "{tokens:?}");
+    assert_eq!(tokens.seen_known, 1);
+}
+
+#[test]
 fn malformed_task_head_and_pair_template_are_named_errors() {
     let mut f = fixture();
     f.manifest["classifier"]["labels"] = serde_json::json!(["a", "b"]);

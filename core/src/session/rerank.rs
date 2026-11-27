@@ -80,8 +80,17 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
                 let at = |e: Error| Error { message: format!("pairs[{i}]: {}", e.message), ..e };
                 let query = text(p.query, "pair.query").map_err(at)?;
                 let passage = text(p.passage, "pair.passage").map_err(at)?;
-                let encoded =
-                    s.model.tokenizer.encode_pair(query, passage, o.query_tokens, max_tokens, o.stride).map_err(at)?;
+                let (encoded, query_tokens) = s
+                    .model
+                    .tokenizer
+                    .encode_pair_counted(query, passage, o.query_tokens, max_tokens, o.stride)
+                    .map_err(at)?;
+                state.row_tokens.push(turbo_row_tokens {
+                    kept: query_tokens.kept,
+                    seen: query_tokens.seen.unwrap_or(0),
+                    seen_known: query_tokens.seen.is_some() as u32,
+                    truncated: query_tokens.truncated as u32,
+                });
                 owners.extend(std::iter::repeat_n(i, encoded.len()));
                 windows.extend(encoded);
             }
@@ -103,6 +112,7 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
                 batch.mask[at].fill(1);
             }
             state.rerank = Some(batch);
+            state.text_rows = true;
             state.written =
                 Some(Written { batch: count, output_dim: 1, tokenized: true, quantization: Quantization::F32 });
             Ok(())

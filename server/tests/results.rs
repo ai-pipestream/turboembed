@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tonic::Code;
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Edges, Ix, Key, Layer, Provenance, Span, Spans, TagSet, View, ViewId};
-use turbo_analysis_embed::{Answers, Reranked};
+use turbo_analysis_embed::Answers;
 use turbo_analysis_layers::{
     Abbreviations, Chunks, Cut, Entities, LayoutBoxes, Levels, Sentences, Subwords, TokenVectorWindows, Tokens, Unit,
     Vectors,
@@ -20,8 +20,7 @@ use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::*;
 use turbo_kserve::results::Wire;
 use turbo_kserve::results::{
-    document::codecs, extraction::Extraction, layers::ChunkLevels, rerank::RerankScores, sparse::SparseTermsWire,
-    tokens::TokenVectors,
+    document::codecs, extraction::Extraction, layers::ChunkLevels, sparse::SparseTermsWire, tokens::TokenVectors,
 };
 
 use common::*;
@@ -58,33 +57,6 @@ async fn token_vectors_cross_the_wire_unchanged() {
     assert_eq!(decoded.windows, t.windows);
     assert_eq!(decoded.vectors().unwrap().data, v.data);
     assert_eq!(decoded.windows_layer(4).unwrap().spans.columns(), w.spans.columns());
-}
-
-#[tokio::test]
-async fn rerank_scores_cross_the_wire_unchanged() {
-    let (_s, mut c) = serve().await;
-    let r = reranked();
-    let m = RerankScores::new(&r);
-    let msg = m.to_msg();
-    let back = c.round_trip_rerank_scores(msg.clone()).await.unwrap().into_inner();
-    assert_eq!(back, msg);
-    let decoded = RerankScores::from_msg(&back).unwrap();
-    assert_eq!(decoded.model, r.model);
-    assert_eq!(decoded.source, "turbo:chunks");
-    assert_eq!(decoded.instance, "candidates");
-    assert_eq!(decoded.items, r.items.iter().map(|i| i.get() as u32).collect::<Vec<_>>());
-    assert_eq!(decoded.scores, r.scores);
-    // Named instances of one layer keep their identity on the wire.
-    for name in ["shortlist-a", "shortlist-b"] {
-        let r = Reranked {
-            source: Key::<turbo_analysis_layers::Chunks>::named(name),
-            items: vec![Ix::new(0)],
-            scores: vec![1.0],
-            model: model_ref(),
-        };
-        let decoded = RerankScores::from_msg(&RerankScores::new(&r).to_msg()).unwrap();
-        assert_eq!(decoded.instance, name);
-    }
 }
 
 #[tokio::test]

@@ -526,6 +526,10 @@ message RerankScoresResult
 
   // The relevance score per item: finite, descending.
   repeated float score = 4;
+
+  // What the shared rerank query came to against its token budget (#2511).
+  // Absent on a legacy result or one where no rerank run was made.
+  InputTokens query = 6;
 }
 
 // The ranked answers of an extraction or question-answering run: the
