@@ -38,6 +38,7 @@ mod neural;
 pub mod paths;
 pub mod pattern;
 mod prepare;
+pub mod work;
 pub mod zeroshot;
 
 pub use annotator::RelationAnnotator;
@@ -50,6 +51,7 @@ pub use layer::Relations;
 pub use modality::{ModalityAnnotator, ModalityConfig};
 pub use paths::{DependencyPath, RelationPaths};
 pub use pattern::{RelationMention, RelationPattern, Step};
+pub use work::RelationWork;
 pub use zeroshot::{
     LexicalRelationScorer, Mention, RelationError, RelationLabel, RelationScorer, ZeroShotRelationAnnotator,
     ZeroShotRelationConfig,

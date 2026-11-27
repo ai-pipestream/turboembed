@@ -137,11 +137,22 @@ fn several_and_duplicate_patterns() {
     // the edge layer holds the triple once.
     assert_eq!(relations.spans.len(), 2);
     assert_eq!(edges.len(), 1);
-    // Distinct types over one pair are distinct edges.
-    let two =
-        RelationAnnotator::new(vec![pattern(None), RelationPattern::new("deal", "<nsubj >obj").unwrap()]).unwrap();
-    let (relations, edges) = extract(&f, &two);
-    assert_eq!((relations.spans.len(), edges.len()), (2, 2));
+    // Distinct types over one pair are distinct edges, and repeated
+    // types coalesce to their highest confidence in tag order while
+    // `Relations` retains every mention in registration order.
+    let multi = RelationAnnotator::new(vec![
+        RelationPattern::new("deal", "<nsubj >obj").unwrap().confidence(0.3).unwrap(),
+        pattern(None).confidence(0.8).unwrap(),
+        RelationPattern::new("deal", "<nsubj >obj").unwrap().confidence(0.9).unwrap(),
+        pattern(None).confidence(0.2).unwrap(),
+    ])
+    .unwrap();
+    let (relations, edges) = extract(&f, &multi);
+    assert_eq!((relations.spans.len(), edges.len()), (4, 2));
+    assert_eq!(relations.score, vec![0.3, 0.8, 0.9, 0.2]);
+    edges.check().unwrap();
+    assert_eq!((edges.kind[0], edges.score[0]), (Tag(0), 0.9));
+    assert_eq!((edges.kind[1], edges.score[1]), (Tag(1), 0.8));
 }
 
 #[test]

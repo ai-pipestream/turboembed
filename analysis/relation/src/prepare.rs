@@ -27,6 +27,7 @@ pub(crate) struct Prepared<'a, A: WordOrTokenAnchor> {
     pub graph: DependencyGraph<A>,
     pub entity_heads: Vec<Option<Ix<A>>>,
     pub word_sentence: Vec<Option<usize>>,
+    pub head_probes: usize,
 }
 
 pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
@@ -38,7 +39,6 @@ pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
     let fail = |detail: String| Error::Annotator { annotator: id, detail };
     sentences.check().map_err(fail)?;
     entities.check().map_err(fail)?;
-    dependencies.check().map_err(fail)?;
     dependencies.check_forest().map_err(fail)?;
     if let Some(lemmas) = lemmas {
         lemmas.check().map_err(fail)?;
@@ -78,8 +78,7 @@ pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
     // Words follow text order, so the words overlapping one entity
     // fragment form one contiguous range; the first outward word
     // overall is the minimum over the fragments.
-    let (word_starts, word_ends): (Vec<u32>, Vec<u32>) =
-        words.iter().map(|w| (w.token_span.start, w.token_span.end)).unzip();
+    let mut head_probes = 0usize;
     let entity_heads: Vec<Option<Ix<A>>> = (0..entities.spans.len() as u32)
         .map(|e| {
             let e = Ix::new(e);
@@ -87,9 +86,16 @@ pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
                 .spans
                 .fragments(e)
                 .filter_map(|y| {
-                    let lo = word_ends.partition_point(|&end| end <= y.start);
-                    let hi = word_starts.partition_point(|&start| start < y.end);
+                    let lo = words.partition_point(|w| {
+                        head_probes += 1;
+                        w.token_span.end <= y.start
+                    });
+                    let hi = words.partition_point(|w| {
+                        head_probes += 1;
+                        w.token_span.start < y.end
+                    });
                     (lo..hi.max(lo)).find(|&i| {
+                        head_probes += 1;
                         overlaps(words[i].token_span, e)
                             && match dependencies.head[i] {
                                 None => true,
@@ -101,9 +107,15 @@ pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
                 .map(|i| Ix::new(i as u32))
         })
         .collect();
-    let word_sentence: Vec<Option<usize>> =
-        words.iter().map(|w| sentences.spans.covering_at(w.token_span.start).map(|i| i.get())).collect();
-    Ok(Prepared { words, graph, entity_heads, word_sentence })
+    let sentence_probe_cost = (sentences.spans.len() + 1).ilog2() as usize + 1;
+    let word_sentence: Vec<Option<usize>> = words
+        .iter()
+        .map(|w| {
+            head_probes += sentence_probe_cost;
+            sentences.spans.covering_at(w.token_span.start).map(|i| i.get())
+        })
+        .collect();
+    Ok(Prepared { words, graph, entity_heads, word_sentence, head_probes })
 }
 
 /// Entities grouped by the sentence of their head word, each group
