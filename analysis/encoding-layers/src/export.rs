@@ -1,7 +1,9 @@
 //! The document graph codec for this crate's layer, so a document's
 //! encoding crosses the export boundary with the rest of the graph.
 
-use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer};
+use turbo_analysis::export::{
+    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, get_variant, put_variant,
+};
 use turbo_analysis::{Document, Layer};
 
 use crate::{Encoding, EncodingEvidence, SourceEncoding};
@@ -19,17 +21,6 @@ const EVIDENCES: [EncodingEvidence; 5] = [
 
 fn malformed(detail: impl Into<String>) -> ExportError {
     ExportError::Malformed(detail.into())
-}
-
-fn put_variant<E: Copy + PartialEq>(w: &mut Writer, table: &[E], value: E, what: &str) -> Result<(), ExportError> {
-    let at = table.iter().position(|v| *v == value).ok_or_else(|| malformed(format!("a {what} outside its table")))?;
-    w.u8(u8::try_from(at).map_err(|_| malformed(format!("a {what} table longer than a u8 can index")))?);
-    Ok(())
-}
-
-fn get_variant<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<E, ExportError> {
-    let at = r.u8()? as usize;
-    table.get(at).copied().ok_or_else(|| malformed(format!("a {what} discriminant of {at}")))
 }
 
 impl LayerCodec for SourceEncoding {

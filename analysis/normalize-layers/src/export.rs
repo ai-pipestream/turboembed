@@ -4,6 +4,7 @@
 
 use turbo_analysis::export::{
     Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, get_spans, get_variants, put_spans,
+    put_variants,
 };
 use turbo_analysis::{Document, Layer, Span, Spans};
 use turbo_analysis_layers::export::{get_strs, put_strs};
@@ -46,20 +47,6 @@ fn done(r: &Reader<'_>, what: &str) -> Result<(), ExportError> {
 
 fn want_len(got: usize, want: usize, what: &str) -> Result<(), ExportError> {
     if got != want { Err(malformed(format!("{got} {what} for {want} items"))) } else { Ok(()) }
-}
-
-fn put_variant<E: Copy + PartialEq>(w: &mut Writer, table: &[E], value: E, what: &str) -> Result<(), ExportError> {
-    let at = table.iter().position(|v| *v == value).ok_or_else(|| malformed(format!("a {what} outside its table")))?;
-    w.u8(u8::try_from(at).map_err(|_| malformed(format!("a {what} table longer than a u8 can index")))?);
-    Ok(())
-}
-
-fn put_variants<E: Copy + PartialEq>(w: &mut Writer, table: &[E], values: &[E], what: &str) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for &v in values {
-        put_variant(w, table, v, what)?;
-    }
-    Ok(())
 }
 
 /// Every fragment inside the text of the view the spans are in, on

@@ -156,14 +156,43 @@ pub fn get_f64s(r: &mut Reader<'_>) -> Result<Vec<f64>, ExportError> {
     Ok(values)
 }
 
-/// A column of variants, each written as its position in `table`: a
-/// position outside the table is refused, naming `what`, and never read
-/// as some other variant.
+/// A variant as one byte, its position in `table`: the wire order of
+/// the variants is the order of the table. A value the table does not
+/// hold, or a table longer than a byte can index, is refused, naming
+/// `what`.
+pub fn put_variant<E: Copy + PartialEq>(w: &mut Writer, table: &[E], value: E, what: &str) -> Result<(), ExportError> {
+    let at = table.iter().position(|v| *v == value).ok_or_else(|| malformed(format!("a {what} outside its table")))?;
+    w.u8(u8::try_from(at).map_err(|_| malformed(format!("a {what} table longer than a u8 can index")))?);
+    Ok(())
+}
+
+/// The variant [`put_variant`] wrote: a position outside the table is
+/// refused, naming `what`, and never read as some other variant.
+pub fn get_variant<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<E, ExportError> {
+    let at = r.u8()? as usize;
+    table.get(at).copied().ok_or_else(|| malformed(format!("a {what} discriminant of {at}")))
+}
+
+/// A column of variants: its length, then each as [`put_variant`]
+/// writes it.
+pub fn put_variants<E: Copy + PartialEq>(
+    w: &mut Writer,
+    table: &[E],
+    values: &[E],
+    what: &str,
+) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for &v in values {
+        put_variant(w, table, v, what)?;
+    }
+    Ok(())
+}
+
+/// The column [`put_variants`] wrote, read as [`get_u32s`] reads its own.
 pub fn get_variants<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<Vec<E>, ExportError> {
     let mut values = Vec::new();
     for _ in 0..r.usize()? {
-        let at = r.u8()? as usize;
-        values.push(table.get(at).copied().ok_or_else(|| malformed(format!("a {what} discriminant of {at}")))?);
+        values.push(get_variant(r, table, what)?);
     }
     Ok(values)
 }

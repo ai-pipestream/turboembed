@@ -17,8 +17,8 @@
 use turbo_analysis::Evidence;
 use turbo_analysis::export::{
     Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, SliceCx, SlicedBody, Writer,
-    get_f64s, get_spans, get_spans_raw, get_tagset, get_u32s, put_f64s, put_spans, put_spans_raw, put_tagset, put_u32s,
-    slice_spans_payload,
+    get_f64s, get_spans, get_spans_raw, get_tagset, get_u32s, get_variant, get_variants, put_f64s, put_spans,
+    put_spans_raw, put_tagset, put_u32s, put_variant, put_variants, slice_spans_payload,
 };
 use turbo_analysis::{
     Alternatives, Document, Edges, Groups, Ix, IxRange, Key, Layer, ModelRef, NBest, Tag, TagSet, View,
