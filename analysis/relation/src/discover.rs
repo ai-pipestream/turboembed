@@ -66,6 +66,7 @@ impl<A: WordOrTokenAnchor> Annotator for RelationPathAnnotator<A> {
         let (mut step_row, mut step_token, mut step_up, mut step_relation) =
             (vec![0u32], Vec::new(), Vec::new(), Vec::new());
         let mut path = Vec::new();
+        let mut paths = None;
         let by_sentence = crate::prepare::by_sentence(&p.entity_heads, &p.word_sentence, sentences.spans.len());
         for s in 0..entities.spans.len() as u32 {
             let Some(sh) = p.entity_heads[s as usize] else { continue };
@@ -80,10 +81,9 @@ impl<A: WordOrTokenAnchor> Annotator for RelationPathAnnotator<A> {
                 if sh == oh {
                     continue;
                 }
-                let search = p
-                    .graph
-                    .shortest_path_into(sh, oh, self.max_path_len, &mut path)
-                    .map_err(|e| fail(e.to_string()))?;
+                let paths = paths.get_or_insert_with(|| p.graph.path_index());
+                let search =
+                    paths.shortest_path_into(sh, oh, self.max_path_len, &mut path).map_err(|e| fail(e.to_string()))?;
                 if !search.found || path.is_empty() {
                     continue;
                 }
