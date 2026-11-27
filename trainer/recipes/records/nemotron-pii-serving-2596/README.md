@@ -329,3 +329,48 @@ target/release/examples/pii_overlay_cache "$ENCODER" "$EXPERIMENT/legacy" "$EXPE
 target/release/examples/pii_contrast_fit \
   "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$REFIT_HEAD_SPEC" "$EXPERIMENT" --overlay
 ```
+
+### Row-matched overlay result (rejected)
+
+The CPU run at `b124714490b4e7f1ed8a51299b9233d152725b6b` selected
+epoch 6 and wrote a 6,201,308-byte head (SHA-256
+`b75a793608ca52e2b8815361c2186c5648e86f58537857e8f31fa7c694bfa981`).
+The training runner verified all 5,400 unedited encoded rows
+byte-for-byte and all 600 edits' word and non-`O` counts per index.
+The independent loss accounting agreed exactly by seeded batch:
+209,985 synthetic words, 28,375 synthetic BIO-labelled words and
+223 steps per epoch. The label distribution moved as intended:
+synthetic city spans 14,288 to 13,221, first-name spans 14,087
+to 13,069, and company and surname spans each 0 to 600.
+
+| Dev or diagnostic | Frozen control | Overlay |
+| --- | ---: | ---: |
+| Publisher micro F1 | 0.5725 | 0.5724 |
+| Publisher city F1 | 0.6787 | 0.6796 |
+| Publisher first name F1 | 0.8778 | 0.8768 |
+| Publisher last name F1 | 0.8270 | 0.8175 |
+| Publisher company name F1 | 0.7712 | 0.7710 |
+| Publisher multiword surnames, exact | 108/198 | 103/198 |
+| Publisher particle-led surnames, exact | 99/165 | 94/165 |
+| Historical synthetic city F1 | 0.8617 | 0.8590 |
+| Historical synthetic first-name F1 | 0.8594 | 0.8571 |
+| New disjoint synthetic city F1 | 0.3730 | 0.3728 |
+| New disjoint synthetic first-name F1 | 0.2140 | 0.2284 |
+| New disjoint synthetic company F1 | 0.0259 | 0.0686 |
+| New disjoint synthetic surname F1 | 0.0000 | 0.0000 |
+| Neutral particle probes with a surname false positive | 1/12 | 4/12 |
+
+The overlay restores much of the historical city/person and publisher
+surname performance lost by wholesale replacement, but the frozen
+control still does better on those safeguards. New four-role macro
+F1 improved by 0.0143, below the existing 0.02 bar; loss of real
+publisher multiword spans and additional false positives are distinct
+from the artificial unseen-particle stress. The same dev gate again
+exited 2. No serving calibration, holdout scoring, or promotion ran.
+
+A better next direction would draw varied real multiword surname
+positives and same-token context negatives from publisher **training**
+and match class support rather than adding synthetic particles alone.
+Measure exact boundaries on the frozen publisher dev strata and
+neutral-particle errors first; the multiword decoder itself should
+not be changed to force a match.

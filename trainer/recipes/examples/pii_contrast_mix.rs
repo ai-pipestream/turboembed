@@ -1,6 +1,7 @@
 //! Exact per-batch loss-denominator accounting for the #2596 pilot.
 //! This inspects train rows and replays the shuffle, but does not fit.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use serde_json::json;
@@ -9,7 +10,7 @@ use turbo::manifest::HeadSpec;
 use turbo_trainer::Tagger;
 use turbo_trainer::rng::Rng;
 use turbo_trainer_recipes::corpus::Sentence;
-use turbo_trainer_recipes::nemotron_pii::{context_contrasts, read_pinned_train_dev, shared_names};
+use turbo_trainer_recipes::nemotron_pii::{context_contrasts, context_overlay, read_pinned_train_dev, shared_names};
 
 #[derive(Clone, Copy)]
 struct Row {
@@ -53,7 +54,14 @@ fn tally(base: &[Row], new: &[Sentence], spec: &HeadSpec) -> serde_json::Value {
         epoch.push(json!({"updates": steps, "synthetic_gradient_coefficient_share": share / steps as f64,
             "synthetic_labelled_coefficient_share": labelled_share / steps as f64}));
     }
+    let mut roles = BTreeMap::<&str, usize>::new();
+    for row in new {
+        for kind in row.labels.iter().filter_map(|l| l.strip_prefix("B-")) {
+            *roles.entry(kind).or_default() += 1;
+        }
+    }
     json!({
+        "span_counts": roles,
         "words": train.iter().map(|r| r.words).sum::<usize>(),
         "synthetic_words": train.iter().filter(|r| r.synthetic).map(|r| r.words).sum::<usize>(),
         "synthetic_labelled_words": train.iter().filter(|r| r.synthetic).map(|r| r.labels).sum::<usize>(),
@@ -70,8 +78,14 @@ fn main() {
     let (train, _) = read_pinned_train_dev(Path::new(&args[0])).unwrap();
     let base: Vec<_> = train.iter().step_by(4).map(|r| row(r, false)).collect();
     assert_eq!(base.len(), 22_500);
+    let (legacy, _) = shared_names::documents().unwrap();
+    let mut overlay = legacy.clone();
+    for (i, edited) in context_overlay::edits(&legacy).unwrap() {
+        overlay[i] = edited;
+    }
     let report = json!({
-        "control": tally(&base, &shared_names::documents().unwrap().0, &spec),
+        "control": tally(&base, &legacy, &spec),
+        "overlay": tally(&base, &overlay, &spec),
         "candidate": tally(&base, &context_contrasts::documents(false).unwrap(), &spec),
     });
     println!("{}", serde_json::to_string_pretty(&report).unwrap());
