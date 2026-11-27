@@ -36,6 +36,11 @@ impl Default for Config {
 }
 
 /// Extracts hashed Unicode scalar n-grams in deterministic bucket order.
+///
+/// `turbo_langdetect::ngram::features` is the same function on the serving
+/// side, which cannot depend on the trainer. Its crate's test
+/// `the_trainer_and_the_runtime_extract_the_same_features` runs both on the
+/// same texts, so a change to one without the other fails there.
 pub fn features(text: &str, ngram_range: (u8, u8), buckets: u32) -> BTreeMap<u32, f32> {
     let chars: Vec<char> = text.chars().collect();
     let mut features = BTreeMap::new();

@@ -25,7 +25,11 @@ impl Norm {
 }
 
 /// HF make_log_bucket_position, including its signed distance convention.
-pub(crate) fn bucket(distance: isize, buckets: usize, maximum: usize) -> usize {
+///
+/// The one place a relative distance becomes a position row: every encoder
+/// here and the trainer's DeBERTa layer call it, so a model is trained and
+/// served with the same rows.
+pub fn bucket(distance: isize, buckets: usize, maximum: usize) -> usize {
     let mid = buckets / 2;
     let abs = distance.unsigned_abs();
     let magnitude = if abs <= mid {

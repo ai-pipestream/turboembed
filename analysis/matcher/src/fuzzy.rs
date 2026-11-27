@@ -301,6 +301,8 @@ mod tests {
     }
 
     /// The full optimal-string-alignment table, as the definition states it.
+    /// `tests/fuzzy.rs` holds the same table for the tests out there, and
+    /// holds it to distances worked out by hand.
     fn osa(a: &[char], b: &[char]) -> usize {
         let mut d = vec![vec![0usize; b.len() + 1]; a.len() + 1];
         for (i, row) in d.iter_mut().enumerate() {

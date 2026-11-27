@@ -26,8 +26,7 @@ use attention::Run;
 /// A run's workspace, reused across runs (`Encoder::workspace`).
 pub(crate) use attention::Run as Workspace;
 pub use config::Config;
-#[cfg(feature = "levelzero")]
-pub(crate) use math::bucket;
+pub use math::bucket;
 pub use projections::TokenPromptProjections;
 use weights::Weights;
 
