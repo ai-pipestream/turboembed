@@ -152,7 +152,7 @@ impl ChunkFile {
     }
 }
 
-impl Handler<crate::xml::Error> for ChunkFile {
+impl Handler for ChunkFile {
     fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         let prefix = self.kind.node_prefix();
         match name {
