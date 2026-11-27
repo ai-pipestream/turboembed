@@ -142,3 +142,53 @@ probes, and gate on this separate synthetic dev and publisher dev
 before trying the frozen tests. Keep the previously
 measured city gains, all three memo error counts, standalone person
 results, and corpus class scores as separate acceptance gates.
+
+## Registered continuation: balanced same-token contrast
+
+This is a matched bounded experiment, not a shipment. Hold the ModernBERT
+layer-22 encoder, 128-dimensional hashed word table, BIO head, seed 1,
+batch 128, learning rate 0.004, six epochs, and 28,500 training-document
+budget fixed. Use the same 22,500 pinned publisher rows in each arm plus
+6,000 project-authored documents: the original generator for control,
+or the four-role same-token generator for the candidate. The new example
+generator labels city, given name, multi-word surname, and organization
+in matched subject, `from`, and `to` contexts. Draw candidate dev from
+a separate name pool and separate template families. Use the same
+publisher and synthetic feature sources in both arms except for the
+intentional replacement of the synthetic training documents. The
+publisher prefix is reused; all synthetic arms use the same pinned CPU
+encoder, first-subword pooling and settings.
+
+Choose each arm's checkpoint on **publisher dev only**. The preregistered
+dev gate requires no decrease in publisher micro span F1 or its city,
+first-name, last-name, and company-name F1, no decrease in historical
+synthetic-dev city/person F1, and no decrease in any of the four roles
+on the new synthetic dev, with at least 0.02 absolute improvement in
+the four-role macro span F1. A failing candidate is not calibrated,
+assembled or scored on holdout. This gate is purposely not a serving
+pass. A survivor would still need an independent full fit, dev-only
+calibration and the previously reserved serving and corpus acceptance
+checks in #2596, including all three memo counts.
+
+`pii_contrast_cache` writes only the synthetic train and dev files.
+`pii_contrast_fit` checks the archived encoder, head spec, and publisher
+cache metadata digests, loads only the publisher training Parquet for
+the publisher train/dev split, and refuses test feature reads. Set
+`ENCODER`, `EXPERIMENT`, `PUBLISHER_CORPUS`, `PUBLISHER_CACHE` and
+`REFIT_HEAD_SPEC` to the pinned inputs described above and the archived
+v2 fit. The output directory is a fresh scratch directory.
+
+```sh
+cargo build --locked --release -p turbo-trainer-recipes \
+  --example pii_contrast_cache --example pii_contrast_fit
+target/release/examples/pii_contrast_cache "$ENCODER" "$EXPERIMENT/legacy" legacy
+target/release/examples/pii_contrast_cache "$ENCODER" "$EXPERIMENT/contrast" contrast
+target/release/examples/pii_contrast_fit \
+  "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$REFIT_HEAD_SPEC" "$EXPERIMENT"
+```
+
+Exit status 2 means the matched run finished and the dev gate rejected
+the candidate. Inspect the per-arm `receipt.json` files and
+`dev-gate.json`. Do not substitute a more favorable dev split or retune
+after a holdout result. Neither the example programs nor their outputs
+change the model used by the serving path.
