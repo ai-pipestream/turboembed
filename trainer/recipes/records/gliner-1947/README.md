@@ -1,4 +1,4 @@
-# GLiNER Mixed-Corpus Release Evaluation Receipts (#1947)
+# GLiNER Mixed-Corpus Evaluation Receipts (#1947)
 
 Committed receipts for mixed-corpus (`wnut17,multiconer2-en`, 39 labels)
 zero-shot evaluation with held-out schema

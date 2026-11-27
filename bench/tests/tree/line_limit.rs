@@ -23,35 +23,49 @@ pub const LIMIT: usize = 500;
 const HEADER: &str = "do not edit";
 
 /// The generators of the tree: the name a generated file's opening comment
-/// gives its generator, a file of that generator, and the directory the
-/// generator writes into.
+/// gives its generator, a file of that generator, and where the generator
+/// writes: the one file it writes, or a directory (with its `/`) when it
+/// writes several. A hand-written file beside a single generated one is
+/// not covered by that file's generator.
 pub const GENERATORS: &[(&str, &str, &str)] = &[
     ("turbo-encoding-gen", "analysis/encoding-gen/Cargo.toml", "analysis/encoding/src/tables/"),
     ("turbo-unicode-gen", "analysis/unicode-gen/Cargo.toml", "analysis/unicode/src/tables/"),
+    // The two below are tests that render one table each: the file is named whole.
+    (
+        "analysis/unicode/tests/jdk_sigma.rs",
+        "analysis/unicode/tests/jdk_sigma.rs",
+        "analysis/unicode/src/java/word_classes.rs",
+    ),
+    (
+        "analysis/fuzz/tests/confusables_17.rs",
+        "analysis/fuzz/tests/confusables_17.rs",
+        "analysis/fuzz/src/runs/confusables_17.rs",
+    ),
     (
         "analysis/sentdetect/tests/rules_tables.rs",
         "analysis/sentdetect/tests/rules_tables.rs",
-        "analysis/sentdetect/src/rules/",
+        "analysis/sentdetect/src/rules/tables.rs",
     ),
     ("snowball/generate.sh", "analysis/stem/snowball/generate.sh", "analysis/stem/src/snowball/algorithms/"),
-    ("tools/CharsetTables.java", "analysis/hunspell/tools/CharsetTables.java", "analysis/hunspell/src/charset/"),
+    (
+        "tools/CharsetTables.java",
+        "analysis/hunspell/tools/CharsetTables.java",
+        "analysis/hunspell/src/charset/tables.rs",
+    ),
 ];
 
 /// Hand-kept data tables over the limit, each with what it holds (#2565).
 /// A table is one static of literals: there is no logic in it to split.
+/// These two have no source in the tree that a generator could read again.
 pub const DATA_TABLES: &[(&str, &str)] = &[
     (
         "analysis/encoding/src/detect/data.rs",
         "the byte classes and pair scores of chardetng 0.1.17, copied from its data file",
     ),
     (
-        "analysis/fuzz/src/runs/confusables_17.rs",
-        "the confusable mappings of Unicode 17.0.0 that differ from 18.0.0, written once from the two data files",
-    ),
-    ("analysis/pii/src/tables/tlds.rs", "the top-level domains of one IANA root zone snapshot"),
-    (
-        "analysis/unicode/src/java/word_classes.rs",
-        "the word classes of JDK 21, written from the ranges its probe test prints",
+        "analysis/pii/src/tables/tlds.rs",
+        "the top-level domains of one IANA root zone snapshot: IANA serves the current list only, \
+         under no stated licence, so no copy of its file is kept in the tree",
     ),
 ];
 
@@ -67,22 +81,38 @@ fn opening_comment(text: &str) -> String {
     words.join(" ")
 }
 
+/// Whether `comment` holds `word` whole: with nothing before or after it
+/// that would make it part of a longer word, name or path. A full stop
+/// after it ends a sentence unless a letter or digit follows (`x.rs.bak`).
+fn holds(comment: &str, word: &str) -> bool {
+    let part = |c: char| c.is_alphanumeric() || "_-/".contains(c);
+    comment.match_indices(word).any(|(at, _)| {
+        let before = comment[..at].chars().next_back();
+        let mut after = comment[at + word.len()..].chars();
+        let next = after.next();
+        let extension = next == Some('.') && after.next().is_some_and(char::is_alphanumeric);
+        !before.is_some_and(|c| part(c) || c == '.') && !next.is_some_and(part) && !extension
+    })
+}
+
 /// Whether the file's opening comment says not to edit it. The words
-/// anywhere else in the file, in code or in a later comment, do not count.
+/// anywhere else in the file, in code or in a later comment, do not count,
+/// and neither do they inside longer words ("do not editorialize").
 fn says_generated(text: &str) -> bool {
-    opening_comment(text).to_ascii_lowercase().contains(HEADER)
+    holds(&opening_comment(text).to_ascii_lowercase(), HEADER)
 }
 
 /// The generator of the file at `path`, if it is a generated file: its
 /// opening comment says not to edit it and names one of `generators` (a
-/// name and the directory that generator writes into), and `path` is in
-/// that directory.
+/// name and where that generator writes), whole and in its case, and
+/// `path` is that file or in that directory.
 pub fn generator<'a>(path: &str, text: &str, generators: &[(&'a str, &str)]) -> Option<&'a str> {
-    let comment = opening_comment(text);
-    if !comment.to_ascii_lowercase().contains(HEADER) {
+    if !says_generated(text) {
         return None;
     }
-    generators.iter().find(|(name, dir)| comment.contains(name) && path.starts_with(dir)).map(|&(name, _)| name)
+    let comment = opening_comment(text);
+    let writes = |to: &str| if to.ends_with('/') { path.starts_with(to) } else { path == to };
+    generators.iter().find(|(name, to)| holds(&comment, name) && writes(to)).map(|&(name, _)| name)
 }
 
 /// What is wrong among `files` (path and text), given the `generators` of
@@ -166,8 +196,13 @@ fn every_committed_rust_file_is_under_the_line_limit() {
     assert!(found.is_empty(), "{}", found.join("\n"));
 }
 
-/// The generators the tests below know: two names, each with its directory.
-const KNOWN: &[(&str, &str)] = &[("turbo-unicode-gen", "a/src/tables/"), ("snowball/generate.sh", "b/src/algorithms/")];
+/// The generators the tests below know: two that write a directory and
+/// one that writes a single file.
+const KNOWN: &[(&str, &str)] = &[
+    ("turbo-unicode-gen", "a/src/tables/"),
+    ("snowball/generate.sh", "b/src/algorithms/"),
+    ("c/tests/rules_tables.rs", "c/src/rules/tables.rs"),
+];
 
 fn lines(n: usize) -> String {
     "let x = 1;\n".repeat(n)
@@ -232,6 +267,49 @@ fn a_header_alone_does_not_exempt_a_file() {
     assert_eq!(violations(&[("a/src/tables/t.rs", &named)], &here, &[]), [no_backing("a/src/tables/t.rs")]);
     // Such a file can still be listed as a data table, on purpose.
     assert_eq!(violations(&[("a/src/lib.rs", &named)], KNOWN, &["a/src/lib.rs"]), Vec::<String>::new());
+}
+
+#[test]
+fn a_generator_covers_what_it_writes_and_is_named_whole() {
+    let long = |header: &str| format!("{header}\n{}", lines(LIMIT));
+    let no_backing =
+        |path: &str| format!("{path}: 501 lines, and its header names no generator of the tree that writes there");
+    // A generator that writes one file covers that file and not its neighbors.
+    let rules =
+        long("// Generated by c/tests/rules_tables.rs from the files in c/data. Do not edit this file by hand.");
+    assert_eq!(violations(&[("c/src/rules/tables.rs", &rules)], KNOWN, &[]), Vec::<String>::new());
+    for beside in
+        ["c/src/rules/languages.rs", "c/src/rules/mod.rs", "c/src/rules/tables.rs.rs", "x/c/src/rules/tables.rs"]
+    {
+        assert_eq!(violations(&[(beside, &rules)], KNOWN, &[]), [no_backing(beside)]);
+    }
+    // A name inside a longer name or path is another name.
+    for header in [
+        "// Generated by ../../outside/c/tests/rules_tables.rs.bak. Do not edit.",
+        "// Generated by old/c/tests/rules_tables.rs. Do not edit.",
+        "// Generated by c/tests/rules_tables.rs2. Do not edit.",
+        "// Generated by c/tests/rules_tables.rs.bak. Do not edit.",
+    ] {
+        assert_eq!(
+            violations(&[("c/src/rules/tables.rs", &long(header))], KNOWN, &[]),
+            [no_backing("c/src/rules/tables.rs")]
+        );
+    }
+    for header in
+        ["// Generated by my-turbo-unicode-gen. Do not edit.", "// Generated by turbo-unicode-gen2. Do not edit."]
+    {
+        assert_eq!(violations(&[("a/src/tables/t.rs", &long(header))], KNOWN, &[]), [no_backing("a/src/tables/t.rs")]);
+    }
+    // The name ends a sentence, or stands in quotes, and is still the name.
+    for header in ["//! Do not edit; run `c/tests/rules_tables.rs`.", "//! Do not edit. Run c/tests/rules_tables.rs."] {
+        assert_eq!(violations(&[("c/src/rules/tables.rs", &long(header))], KNOWN, &[]), Vec::<String>::new());
+    }
+    // The words inside longer words do not say the file is generated.
+    let prose = long("//! Hand-written, not by c/tests/rules_tables.rs; we do not editorialize.");
+    assert_eq!(
+        violations(&[("c/src/rules/tables.rs", &prose)], KNOWN, &[]),
+        ["c/src/rules/tables.rs: 501 lines, the limit is under 500"]
+    );
 }
 
 #[test]

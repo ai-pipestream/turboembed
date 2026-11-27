@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Resolves and compiles a Maven reactor through package with tests skipped,
-# then keeps transient resolution markers out of the setup-java cache.
+# then keeps transient resolution markers out of the saved Maven cache.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,6 +11,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # a warm run reads nothing from Central. 3.9.0 is the version
 # analysis/goldens-tool/java/pom.xml pins.
 DEPENDENCY_PLUGIN="org.apache.maven.plugins:maven-dependency-plugin:3.9.0"
+
+# Output that means Maven could not get an artifact or plugin, as opposed
+# to a compile or plugin execution failure. "in offline mode" is how an
+# offline build reports what the local repository lacks.
+RESOLUTION_FAILURE='Could not (resolve|find|transfer)|in offline mode|Failed to read artifact descriptor|Unable to resolve artifact|Non-resolvable|No plugin found for prefix|Plugin .*could not be resolved'
 
 resolve() {
   local attempts="${MAVEN_RESOLVE_ATTEMPTS:-3}"
@@ -25,23 +30,35 @@ resolve() {
     echo "error: could not read the pinned Surefire version" >&2
     exit 2
   fi
+  local goals=("$DEPENDENCY_PLUGIN:go-offline" "$DEPENDENCY_PLUGIN:get"
+    -Dartifact="org.apache.maven.surefire:surefire-junit-platform:$surefire_version" package)
   local log attempt=1
   log="$(mktemp)"
+  # A restored cache usually holds the whole reactor. Offline, Maven makes
+  # no request to Central at all, not even the remote repository filter's
+  # .meta/prefixes.txt that an online build reads on every run. Central is
+  # asked only for what the local repository lacks.
+  local offline=(0 0)
+  mvn -B -ntp -o -DskipTests "$@" "${goals[@]}" 2>&1 | tee "$log" || offline=("${PIPESTATUS[@]}")
+  if ((offline[0] == 0 && offline[1] == 0)); then
+    rm -f "$log"
+    return 0
+  fi
+  if ((offline[0] == 0)) || ! grep -Eq "$RESOLUTION_FAILURE" "$log"; then
+    rm -f "$log"
+    return 1
+  fi
+  echo "The local Maven repository is incomplete; resolving from the remote repositories" >&2
   while true; do
     local statuses=(0 0)
-    mvn -B -ntp -DskipTests \
-      "$@" "$DEPENDENCY_PLUGIN:go-offline" "$DEPENDENCY_PLUGIN:get" \
-      -Dartifact="org.apache.maven.surefire:surefire-junit-platform:$surefire_version" \
-      package 2>&1 | tee "$log" || statuses=("${PIPESTATUS[@]}")
+    mvn -B -ntp -DskipTests "$@" "${goals[@]}" 2>&1 | tee "$log" || statuses=("${PIPESTATUS[@]}")
     if ((statuses[0] == 0 && statuses[1] == 0)); then
       rm -f "$log"
       return 0
     fi
     # A compile or plugin execution failure is not a transient repository
     # miss. Return it immediately instead of repeating the build.
-    if ((statuses[0] == 0)) || ! grep -Eq \
-      'Could not (resolve|find|transfer)|Failed to read artifact descriptor|Unable to resolve artifact|Non-resolvable|No plugin found for prefix|Plugin .*could not be resolved' \
-      "$log"; then
+    if ((statuses[0] == 0)) || ! grep -Eq "$RESOLUTION_FAILURE" "$log"; then
       rm -f "$log"
       return 1
     fi

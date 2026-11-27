@@ -240,6 +240,8 @@ fn incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_de
         let dev_vec = Arc::new(
             VectorAnnotator::open(&bert(), &dev_opts).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={want}: {e}")),
         );
+        let exec = &dev_vec.info().execution;
+        assert_ne!(exec.backend, "cpu", "the device half ran on the CPU: {exec:?}");
         let dev_scorer: Arc<dyn IncivilityVectorScorer> = Arc::new(HeadIncivilityScorer(Arc::clone(&head)));
         let dev_ann = IncivilityAnnotator::new().with_vector_scorer(dev_scorer).with_reply_context(true);
         let dev_pipe = Analyzer::builder()

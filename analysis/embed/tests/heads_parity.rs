@@ -154,3 +154,23 @@ fn a_required_backend_does_not_choose_the_device() {
         assert_eq!(refused, format!("TURBO_TEST_REQUIRE_CUDA requires a cuda device, and TURBO_TEST_DEVICE={other}"));
     }
 }
+
+#[test]
+fn a_backend_with_a_number_is_refused_before_any_model_loads() {
+    use heads_support::device::device_for;
+    // the name passes the required backend's check and is no Device
+    for (named, required) in [("levelzero:0", None), ("levelzero:0", Some("levelzero")), ("cuda:1", Some("cuda"))] {
+        let backend = named.split(':').next().unwrap();
+        assert_eq!(
+            device_for(Some(named), required).unwrap_err(),
+            format!(
+                "TURBO_TEST_DEVICE={named}: a head test picks a backend's first device ({backend}) or a device index"
+            )
+        );
+    }
+    // another backend's requirement is still what the run hears first
+    assert_eq!(
+        device_for(Some("levelzero:0"), Some("cuda")).unwrap_err(),
+        "TURBO_TEST_REQUIRE_CUDA requires a cuda device, and TURBO_TEST_DEVICE=levelzero:0"
+    );
+}

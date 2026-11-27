@@ -485,7 +485,7 @@ checkpoint's own training data.
 This is an evaluation path, not evidence that the checkpoint passes a corpus's
 shipping gate.
 
-## Mixed-corpus and held-out release evidence (#1947, #2053)
+## Mixed-corpus and held-out evaluation (#1947, #2053)
 
 All receipts below run on the combined WNUT-17 plus MultiCoNER v2 English
 corpus (`wnut17,multiconer2-en`, 39 labels: 1,880 dev sentences / 29,056 words;
@@ -496,7 +496,7 @@ recorded against commit `e7b0ad4cf`. The GLiNER2 receipts
 (`gliner2-base-v1-dev.json` and `gliner2-base-v1-test.json`) were made with
 `eval-gliner2` as this change adds it, on the tree of `e7b0ad4cf`.
 
-### Mixed-corpus release evaluation (#1947)
+### Mixed-corpus evaluation (#1947)
 
 Held-out schema: `location,VisualWork,Scientist,Clothing` (schema digest
 `ac5dd68f3f4a7d27` for GLiNER v2.5, `6e0319e50234c648` for GLiNER2). Receipts
@@ -516,10 +516,9 @@ Per-type held-out test F1:
 - `medium-v2.5`: `Clothing` 0.1248 (870/11702/2244), `Scientist` 0.1481 (2693/31443/4928), `VisualWork` 0.2415 (4092/14214/19678), `location` 0.0027 (93/67925/150; 0.4124 on WNUT-17 alone).
 - `gliner2-base-v1`: `Clothing` 0.1431 (1177/14204/2244), `Scientist` 0.1324 (1797/22226/4928), `VisualWork` 0.2231 (5338/28178/19678), `location` 0.0018 (103/112497/150; 0.2910 on WNUT-17 alone).
 
-Comparison and release decision (#1947):
+Comparison (#1947):
 - Earlier custom `HEAD_OPEN_SPAN` (`trainer/recipes/records/open-span-1735/`): WNUT-17 all-6 test F1 0.2708; WNUT-17 holdout-`location` test F1 0.2601 overall / 0.2829 seen / 0.0460 held-out `location`. All three GLiNER checkpoints beat `HEAD_OPEN_SPAN` on held-out `location` on WNUT-17 (0.4299, 0.4124, 0.2910 vs 0.0460).
 - GLiNER2 vs GLiNER2.5: `medium-v2.5` (0.2447 overall) and `small-v2.5` (0.2202 overall) outperform `gliner2-base-v1` (0.1482 overall) on the 39-label mixed schema.
-- Release gate: **FAIL** for all three candidates against the 0.45 overall / 0.30 held-out release floor. None of the zero-shot checkpoints meets release quality on unseen fine-grained types.
 
 ### Independent held-out schema groups (#2053)
 
@@ -532,13 +531,13 @@ were calibrated on `dev` (`trainer/recipes/records/open-span-2053/`):
 
 Frozen test receipts for `small-v2.5` across the three independent groups (`schema=ac5dd68f3f4a7d27`, `commit=e7b0ad4cf`):
 
-| Group | Calibration SHA-256 (prefix) | Test Overall F1 (vs Maj / Dict) | Seen F1 | Held-out F1 (vs Maj / Dict) | Per-type Held-out Test F1 | Gate (0.45 / 0.30) |
-|---|---|---:|---:|---:|---|---|
-| `location` | `67a1a750df8d` | 0.2202 (0.1416 / 0.0001) | 0.2088 | 0.0033 (0.0000 / 0.0000) | `location`: 0.0033 (73/44130/150; 0.5551 on WNUT-17) | **FAIL** |
-| `VisualWork,Scientist` | `88be16cd804e` | 0.2202 (0.1427 / 0.0001) | 0.2033 | 0.1746 (0.0000 / 0.0000) | `Scientist`: 0.1223 (2586/37350/4928), `VisualWork`: 0.2409 (4012/13627/19678) | **FAIL** |
-| `Clothing` | `226d7ad8a9a5` | 0.2202 (0.1403 / 0.0001) | 0.2015 | 0.0619 (0.0000 / 0.0017) | `Clothing`: 0.0619 (458/12548/2244) | **FAIL** |
+| Group | Calibration SHA-256 (prefix) | Test Overall F1 (vs Maj / Dict) | Seen F1 | Held-out F1 (vs Maj / Dict) | Per-type Held-out Test F1 |
+|---|---|---:|---:|---:|---|
+| `location` | `67a1a750df8d` | 0.2202 (0.1416 / 0.0001) | 0.2088 | 0.0033 (0.0000 / 0.0000) | `location`: 0.0033 (73/44130/150; 0.5551 on WNUT-17) |
+| `VisualWork,Scientist` | `88be16cd804e` | 0.2202 (0.1427 / 0.0001) | 0.2033 | 0.1746 (0.0000 / 0.0000) | `Scientist`: 0.1223 (2586/37350/4928), `VisualWork`: 0.2409 (4012/13627/19678) |
+| `Clothing` | `226d7ad8a9a5` | 0.2202 (0.1403 / 0.0001) | 0.2015 | 0.0619 (0.0000 / 0.0017) | `Clothing`: 0.0619 (458/12548/2244) |
 
-All three groups share the test all-label prediction SHA-256 `75ced3b03b5ad9e568b1d13b732b47c9304d2534199ed172d8592ce45743f01f`. Every group fails both the 0.45 overall floor and the 0.30 held-out group floor; closing the gap requires unfreezing the DeBERTa encoder (LoRA) or stronger negative supervision on cross-corpus unannotated types.
+All three groups share the test all-label prediction SHA-256 `75ced3b03b5ad9e568b1d13b732b47c9304d2534199ed172d8592ce45743f01f` with the mixed-corpus `small-v2.5` test run above. `small-v2.5` therefore has four test receipts: one all-label decoding scored under four held-out schemas, each with the thresholds of its own `dev` run, fitted before the test run.
 
 ## Numerical and boundary proof
 
