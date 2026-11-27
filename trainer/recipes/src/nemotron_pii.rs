@@ -11,6 +11,8 @@
 //! `train`), keeping every persona's `us` and `intl` records on the same side
 //! of the boundary (`90,000` `train`, `10,000` `dev`, `100,000` `test`).
 
+pub mod context_contrasts;
+pub mod context_overlay;
 pub mod shared_names;
 pub mod spans;
 
@@ -241,6 +243,15 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
         recipe_only: false,
     };
     Ok(Corpus { record, splits: Splits { train, dev, test } })
+}
+
+/// Reads just the recorded publisher training Parquet, splitting it into
+/// train and dev. Does not open the reserved test Parquet.
+pub fn read_pinned_train_dev(dir: &Path) -> Result<(Vec<Sentence>, Vec<Sentence>)> {
+    let (record, bytes) = read_file(dir, TRAIN.path)?;
+    check_pin(&record, &TRAIN).map_err(Error)?;
+    let (train, dev, _) = parse_train_dev(TRAIN.path, &bytes)?;
+    Ok((train, dev))
 }
 
 fn parse_train_dev(file: &str, bytes: &[u8]) -> Result<(Vec<Sentence>, Vec<Sentence>, usize)> {
