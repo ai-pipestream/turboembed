@@ -666,6 +666,16 @@ optimizer bit-for-bit.
 | Last name | 0.8857 | 0.8876 | 0.8878 |
 | Company name | 0.8279 | 0.8306 | 0.8306 |
 
+Signed percentage-point changes for targeted replay:
+
+| Scope | Precision vs catalog | Recall vs catalog | Precision vs control | Recall vs control | Gate |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Micro | +1.896 | +0.514 | +0.021 | +0.010 | Pass |
+| City | +2.368 | -0.798 | +0.122 | +0.050 | Fail |
+| First name | -1.868 | +3.667 | +0.006 | +0.070 | Fail |
+| Last name | -0.421 | +0.856 | +0.006 | +0.048 | Fail |
+| Company name | +1.176 | -0.891 | +0.026 | -0.034 | Fail |
+
 Most aggregate gain is shared by ordinary replay. Targeted replay
 gets one extra city and three fewer city false positives than the
 matched control, and city precision increases. But catalog city
@@ -689,6 +699,16 @@ were run for these heads. #2596 remains open; this does not recover
 the shipping constraints. Any further replay decision should target
 the actual P/R tradeoffs on independent, persona- and surface-separated
 calibration data, not rerun this experiment until an aggregate happens
-to improve. The published source has enough targeted rehearsal
-for a bounded test, but not evidence for the sparse common-name or
-unseen-particle cases.
+to improve. The published source has enough targeted rehearsal for a
+bounded city/first-name, `al` surname, and ordinary company
+boundary experiment. This run did not find a passing candidate
+for any of them; it does not prove those three interventions are
+impossible. The data limitation is narrower and real: sparse
+same-name company contrasts and almost no independently attested
+`del`/`von` surname positives. A further experiment needs a
+frozen calibration partition with independent personas and
+ambiguous surfaces, withheld from both dense replay and supplemental
+selection, plus enough labelled hard negatives to estimate each
+protected P/R tradeoff. If present TRAIN cannot supply that split,
+obtain independently labelled coverage rather than tune against
+the reused publisher dev.
