@@ -37,6 +37,7 @@ pub const SECOND_READING_MIN: f32 = 0.05;
 /// it when what a second reading is changes.
 // Revision 2 limits the second reading to scores below the first.
 const SECOND_READING_REVISION: &str = "turbo-tagger:pii/second-reading/2";
+const BARE_CITY_AUDIT_REVISION: &str = "turbo-tagger:pii/bare-city-audit/1";
 
 /// The configuration hash of a tagger that gives second readings from
 /// the share `min` up, over its hash `before` it gave any.
@@ -308,6 +309,9 @@ impl Annotator for PiiTagger {
     fn config_hash(&self) -> u64 {
         // The second reading changes what is written, so layers cached
         // before it (or under another bar) are computed again.
-        second_reading_config_hash(self.single_reading_config_hash(), SECOND_READING_MIN)
+        let hash = second_reading_config_hash(self.single_reading_config_hash(), SECOND_READING_MIN);
+        // Resolved candidate rows changed when combining with rules;
+        // older layers may be missing rejected Places candidates.
+        if self.rules.is_some() { Fnv1a::new().u64(hash).str(BARE_CITY_AUDIT_REVISION).finish() } else { hash }
     }
 }

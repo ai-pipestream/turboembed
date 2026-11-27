@@ -230,8 +230,9 @@ pub struct ModelResolution<'a> {
 ///
 /// The one exception is a bare city name (no state after it, no city
 /// label before it) inside an admitted `first-name` or `last-name`
-/// candidate (#2312): the city candidate is taken out and the person
-/// candidate stands, so `Paris won the race` names a person.
+/// candidate (#2312): the city candidate records a rule-precedence
+/// rejection and the person candidate stands, so `Paris won the race`
+/// names a person.
 ///
 /// The person rules of the city scanner also decide the head's own `city`
 /// candidates (#2388): one on a name they refuse as a bare city (`we met
@@ -297,12 +298,12 @@ pub fn resolve_model_with_rules(
         (None, None) => None,
     };
     // A bare city name inside a person span of the head is the person's
-    // (#2312): the city candidate is taken out, so the person candidate
-    // does not yield to it.
+    // (#2312): the city stops blocking the person candidate, but
+    // remains in the audit layer with its original rule provenance.
     if let Some(city) = city_detector {
         let dropped = person_city::bare_cities_in_persons(text, &hits, city, model_candidates, model_kinds, threshold);
         if !dropped.is_empty() {
-            hits.drop_spans(city, &dropped);
+            hits.reject_spans(city, &dropped, RejectReason::RulePrecedence);
             admitted_rules.retain(|(span, kind, _)| !(*kind == PiiKind::City && dropped.contains(span)));
         }
     }

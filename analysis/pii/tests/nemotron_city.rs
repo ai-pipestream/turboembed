@@ -77,9 +77,12 @@ fn a_bare_city_inside_a_person_span_is_the_person() {
     ] {
         let (mentions, rows) = resolve(&rules, text, name, kind, 0.9);
         assert_eq!(mentions, owned(&[(name, kind)]), "{text:?}");
-        // The city candidate is taken out: only the person's row is left.
-        assert_eq!(rows.len(), 1, "{text:?}: {rows:?}");
-        assert!(matches!(rows[0].2, PiiDisposition::Kept { .. }), "{text:?}: {rows:?}");
+        // Only the person is a mention, but the city still has an audit row.
+        assert_eq!(rows.len(), 2, "{text:?}: {rows:?}");
+        let city = rows.iter().find(|r| r.1 == "city").unwrap();
+        assert_eq!(city.2, PiiDisposition::RejectedByRule { reason: RejectReason::RulePrecedence });
+        let person = rows.iter().find(|r| r.1 == kind).unwrap();
+        assert!(matches!(person.2, PiiDisposition::Kept { .. }), "{text:?}: {rows:?}");
     }
 }
 

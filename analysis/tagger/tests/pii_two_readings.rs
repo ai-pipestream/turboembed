@@ -115,6 +115,15 @@ fn layers_cached_before_the_second_reading_score_fix_are_computed_again() {
     assert_cached_layers_recomputed(tagger, before);
 }
 
+#[test]
+fn rule_combined_layers_cached_before_bare_city_audit_are_computed_again() {
+    let (tagger, _) = candidates("pii-city-audit-cache", 4.0);
+    let tagger = tagger.with_rules(PiiDetector::pack(Pack::Places));
+    let before = second_reading_config_hash(tagger.single_reading_config_hash(), SECOND_READING_MIN);
+    assert_ne!(tagger.config_hash(), before);
+    assert_cached_layers_recomputed(tagger, before);
+}
+
 fn assert_cached_layers_recomputed(tagger: PiiTagger, before: u64) {
     let current = tagger.config_hash();
     let analyzer = Analyzer::builder().add(SimpleTokenizer::default()).add(tagger).build().unwrap();
