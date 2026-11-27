@@ -27,6 +27,10 @@ impl Rng {
 const ALPHA: [char; 6] = ['a', 'b', 'c', 'd', '\u{e9}', '\u{1f600}'];
 
 /// The full table, as the definition states it, over scalars.
+///
+/// The unit tests of `src/fuzzy.rs` hold the same table, which a test out
+/// here cannot reach. `the_oracle_and_the_search_give_the_distances_worked_by_hand`
+/// holds this one to distances worked out by hand.
 fn osa(a: &[char], b: &[char]) -> usize {
     let mut d = vec![vec![0usize; b.len() + 1]; a.len() + 1];
     for (i, row) in d.iter_mut().enumerate() {
@@ -138,6 +142,47 @@ fn search_agrees_with_the_brute_force_oracle() {
         rounds += 1;
     }
     assert!(rounds == 1500);
+}
+
+/// Distances worked out by hand, not by the table: the table and the search
+/// are each held to them, in both directions. `ca` to `abc` is the pair
+/// that tells this metric from the unrestricted one, which reaches it in two
+/// edits by editing a transposed pair again.
+#[test]
+fn the_oracle_and_the_search_give_the_distances_worked_by_hand() {
+    let pairs = [
+        ("", "", 0),
+        ("", "abc", 3),
+        ("abc", "abc", 0),
+        ("ab", "ba", 1),
+        ("abc", "acb", 1),
+        ("abcd", "badc", 2),
+        ("abcdef", "badcfe", 3),
+        ("ca", "abc", 3),
+        ("flaw", "lawn", 2),
+        ("kitten", "sitting", 3),
+        ("a\u{1f600}b", "ab", 1),
+        ("\u{e9}a", "a\u{e9}", 1),
+        ("\u{1f600}\u{e9}", "\u{e9}", 1),
+    ];
+    let mut scratch = Scratch::default();
+    let mut out = Vec::new();
+    for (a, b, distance) in pairs {
+        for (entry, query) in [(a, b), (b, a)] {
+            let (e, q): (Vec<char>, Vec<char>) = (entry.chars().collect(), query.chars().collect());
+            assert_eq!(osa(&e, &q), distance, "the table: {entry:?} to {query:?}");
+            let lexicon = Lexicon::new(&[entry]);
+            for max in 0..=4u8 {
+                lexicon.search(query, max, &mut scratch, &mut out);
+                let want: &[FuzzyMatch] = if distance <= usize::from(max) {
+                    &[FuzzyMatch { index: 0, distance: distance as u32 }]
+                } else {
+                    &[]
+                };
+                assert_eq!(out, want, "the search: {entry:?} to {query:?} within {max}");
+            }
+        }
+    }
 }
 
 #[test]

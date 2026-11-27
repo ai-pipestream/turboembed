@@ -8,18 +8,9 @@ pub struct Cache<R> {
     n: usize,
 }
 
-pub fn bucket(distance: isize, buckets: usize, maximum: usize) -> usize {
-    let mid = buckets / 2;
-    let abs = distance.unsigned_abs();
-    let magnitude = if abs <= mid {
-        abs
-    } else {
-        (((abs as f32 / mid as f32).ln() / ((maximum - 1) as f32 / mid as f32).ln() * (mid - 1) as f32).ceil() as usize)
-            + mid
-    };
-    let signed = if distance < 0 { -(magnitude as isize) } else { magnitude as isize };
-    (signed + buckets as isize).clamp(0, (2 * buckets - 1) as isize) as usize
-}
+/// The serving encoder's position bucket, not a copy of it: the layer is
+/// trained on the rows it is served with.
+pub use turbo::deberta::bucket;
 
 pub(crate) fn p2c<R: Real>(qkv: &[R], pos: &[R], h: usize, head: usize, d: usize, rows: usize) -> Vec<R> {
     let n = qkv.len() / (3 * h);

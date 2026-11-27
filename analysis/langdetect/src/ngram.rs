@@ -212,6 +212,11 @@ impl NgramModel {
 }
 
 /// Extracts hashed Unicode scalar n-grams in deterministic bucket order.
+///
+/// `turbo_trainer::langid::features` is the same function on the training
+/// side; this crate cannot depend on the trainer outside its tests. The test
+/// `the_trainer_and_the_runtime_extract_the_same_features` runs both on the
+/// same texts, so a change to one without the other fails there.
 pub fn features(text: &str, ngram_range: (u8, u8), buckets: u32) -> BTreeMap<u32, f32> {
     let chars: Vec<char> = text.chars().collect();
     let mut features = BTreeMap::new();
@@ -366,6 +371,46 @@ mod tests {
         assert_eq!(features.len(), 1);
         assert_eq!(features.values().copied().collect::<Vec<_>>(), [2.0]);
         assert_eq!(features, turbo_trainer::langid::features("éé", (1, 1), 16));
+    }
+
+    /// What a model is trained on is what it is served: the trainer's
+    /// extractor and this one give the same buckets and counts, and each
+    /// counts every window of every length once.
+    #[test]
+    fn the_trainer_and_the_runtime_extract_the_same_features() {
+        let texts = [
+            "",
+            "a",
+            "hello world",
+            "aaaaaaaa",
+            "na\u{ef}ve caf\u{e9}, \u{fc}ber",
+            "e\u{301}e\u{301}",
+            "\u{65e5}\u{672c}\u{8a9e}\u{306e}\u{6587}",
+            "\u{1f600}\u{1f601} ok \u{10348}",
+            "\u{645}\u{631}\u{62d}\u{628}\u{627} \u{5e9}\u{5dc}\u{5d5}\u{5dd}",
+        ];
+        let ranges = [(1, 1), (1, 3), (2, 2), (2, 5), (4, 4)];
+        let mut compared = 0usize;
+        for text in texts {
+            let chars = text.chars().count();
+            for range in ranges {
+                for buckets in [1, 16, 1000, 65_537, 1 << 20] {
+                    let ours = features(text, range, buckets);
+                    let trained = turbo_trainer::langid::features(text, range, buckets);
+                    assert_eq!(ours, trained, "{text:?} {range:?} {buckets}");
+                    let windows: usize = (range.0..=range.1).map(|n| (chars + 1).saturating_sub(n as usize)).sum();
+                    let counted: f32 = ours.values().sum();
+                    assert_eq!(counted, windows as f32, "{text:?} {range:?} {buckets}: every window counts once");
+                    assert!(ours.keys().all(|&bucket| bucket < buckets), "{text:?} {range:?} {buckets}");
+                    compared += ours.len();
+                }
+            }
+        }
+        assert!(compared > 500, "the comparison ran on {compared} buckets");
+        // One known value, so the pair cannot drift together: the 32-bit
+        // FNV-1a of the UTF-8 bytes c3 a9 is 0x1e9de8c1, and U+00E9 is there
+        // twice.
+        assert_eq!(features("\u{e9}\u{e9}", (1, 1), 1000), BTreeMap::from([(0x1e9d_e8c1 % 1000, 2.0)]));
     }
 
     #[test]
