@@ -192,3 +192,29 @@ the candidate. Inspect the per-arm `receipt.json` files and
 `dev-gate.json`. Do not substitute a more favorable dev split or retune
 after a holdout result. Neither the example programs nor their outputs
 change the model used by the serving path.
+
+### Objective accounting
+
+The batches and optimizer schedule match (223 updates per epoch), but the
+examples change the token mix. The head receives one supervised loss row
+per SimpleTokenizer word, including `O`; it sums per-word gradients
+and divides by that batch's word count. The publisher contribution is
+4,401,114 word rows in either arm. Total rows rise from 4,611,099 to
+4,717,633 (+2.31%); synthetic rows rise from 209,985 to 316,519,
+including 28,375 vs 34,498 synthetic BIO-labelled rows.
+
+`pii_contrast_mix` replays the exact initialization and seeded batch
+order without fitting. Across the six epochs, synthetic word rows
+account for 4.610% of all gradient coefficients in the control and
+6.783% in the candidate; BIO-labelled synthetic word coefficients
+account for 0.623% and 0.739%, respectively. These are shares of the
+loss denominator, not claims about the magnitude of the gradients or
+AdamW updates. This is a material dose difference even with the same
+document budget; a positive dev result would need confirmation at a
+matched token budget before opening the holdouts. The preregistered
+dev checks are unchanged.
+
+```sh
+cargo run --locked --release -p turbo-trainer-recipes --example pii_contrast_mix -- \
+  "$PUBLISHER_CORPUS" "$REFIT_HEAD_SPEC"
+```

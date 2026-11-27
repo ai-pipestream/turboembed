@@ -34,6 +34,6 @@ fn main() {
         let (_, counts) = cache::write(&mut encoder, &[split], WordPooling::First, 1, 22, out).unwrap();
         let f = out.join(format!("{}.json", split.0));
         std::fs::write(&f, serde_json::to_vec_pretty(&(record.clone(), &counts[0])).unwrap()).unwrap();
-        println!("{} {:?}: {} words after {:.1}s", &args[2], split.0, counts[0].words, start.elapsed().as_secs_f64());
+        println!("{} {:?}: {} words after {:.1}s", args[2], split.0, counts[0].words, start.elapsed().as_secs_f64());
     }
 }
