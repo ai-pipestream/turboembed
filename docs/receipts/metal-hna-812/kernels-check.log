@@ -1,0 +1,38 @@
+### main 7755201ffb4e918ba97b761147999c23ef3064c5 with the uncommitted tree later committed as 7ef2d86dd577a396dc3ef8733981d008d7be4645; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_BUNDLE=<bundles>/all-minilm-l6-v2 cargo test --locked --release -p turbo --features metal --test metal_f16 -- --ignored --nocapture
+
+running 1 test
+<bundles>/all-minilm-l6-v2: 8 rows of up to 256 tokens, 1 - lowest cosine with the cpu 1.965e-6
+  Q: largest magnitude 11.9, 0.0% of F16's range
+  K: largest magnitude 11.9, 0.0% of F16's range
+  V: largest magnitude 5.3, 0.0% of F16's range
+  attention context: largest magnitude 3.3, 0.0% of F16's range
+  GELU output: largest magnitude 25.3, 0.0% of F16's range
+  residual stream: largest magnitude 30.3, 0.0% of F16's range
+  linear=h32: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h64: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h128: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h32n32: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h64n32: 1 - lowest cosine with the cpu 1.965e-6
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 2.09s
+
+### main 7755201ffb4e918ba97b761147999c23ef3064c5 with the uncommitted tree later committed as 7ef2d86dd577a396dc3ef8733981d008d7be4645; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_BUNDLE=<bundles>/bge-base-en-v1.5-r1 cargo test --locked --release -p turbo --features metal --test metal_f16 -- --ignored --nocapture
+
+running 1 test
+<bundles>/bge-base-en-v1.5-r1: 8 rows of up to 512 tokens, 1 - lowest cosine with the cpu 4.635e-6
+  Q: largest magnitude 22.5, 0.0% of F16's range
+  K: largest magnitude 12.4, 0.0% of F16's range
+  V: largest magnitude 10.3, 0.0% of F16's range
+  attention context: largest magnitude 3.3, 0.0% of F16's range
+  GELU output: largest magnitude 51.8, 0.1% of F16's range
+  residual stream: largest magnitude 102.6, 0.2% of F16's range
+  linear=h32: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h64: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h128: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h32n32: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h64n32: 1 - lowest cosine with the cpu 4.635e-6
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 27.44s
+
