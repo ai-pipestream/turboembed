@@ -137,3 +137,28 @@ pub fn fit(train: &[Sample], calibrate: &[Sample]) -> Fit {
     });
     model
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample(value: f64, good: bool) -> Sample {
+        let mut x = [0.0; WIDTH];
+        x[0] = value;
+        (x, good)
+    }
+
+    #[test]
+    fn calibration_disables_directions_without_minimum_confirmed_fixes() {
+        let learn: Vec<_> =
+            std::iter::repeat_n(sample(2.0, true), 24).chain(std::iter::repeat_n(sample(-2.0, false), 35)).collect();
+        let enough: Vec<_> =
+            std::iter::repeat_n(sample(2.0, true), 12).chain(std::iter::repeat_n(sample(-2.0, false), 17)).collect();
+        let weak: Vec<_> =
+            std::iter::repeat_n(sample(2.0, true), 9).chain(std::iter::repeat_n(sample(-2.0, false), 17)).collect();
+        let fit_ok = fit(&learn, &enough);
+        assert!(fit_ok.admits(&sample(2.0, true).0));
+        assert!(!fit_ok.admits(&sample(-2.0, false).0));
+        assert!(!fit(&learn, &weak).admits(&sample(2.0, true).0));
+    }
+}

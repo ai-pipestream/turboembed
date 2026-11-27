@@ -393,3 +393,89 @@ report raw publisher dev TP/FP/FN exactly once. Both city and
 first-name F1 must meet **both** native references and unrelated
 outputs cannot change. This is a partial probe, not a reason to open
 the unchanged serving holdout or claim company or surname recovery.
+
+### Publisher boundary and role-support ceilings
+
+A deterministic oracle uses gold on publisher **dev** only to count
+possible exact repairs. It is not a serving rule. A strict repair may
+extend an existing surname by one token only if the added token's
+native tag is `O`: it cannot overwrite another typed span. This is
+an optimistic ceiling at the fixed raw prediction count. The actual
+catalog and previously refitted bundles were loaded by their pinned
+manifests; the pilot heads were loaded by their pinned file hashes.
+
+| Head | Raw surname F1 | Strict left gains | Strict right gains | F1 ceiling, strict either direction |
+| --- | ---: | ---: | ---: | ---: |
+| Catalog v1 | 0.8857 | 2 | 3 | 0.8869 |
+| Refit v2 | 0.8814 | 1 | 2 | 0.8821 |
+| Bounded control | 0.8270 | 1 | 5 | 0.8284 |
+| Four-role replacement | 0.8158 | 0 | 4 | 0.8167 |
+| Row-matched overlay | 0.8175 | 0 | 4 | 0.8185 |
+
+Even ignoring typed collisions, refit left extension recovers just
+11 matches and reaches 0.8840, below the catalog's native result.
+Relaxed right extension can numerically cross the catalog's raw F1 but
+would overwrite existing typed tokens, violating the intervention
+constraint. No boundary classifier was fitted. The artificial dev
+overlay would have 180 strict left-extension opportunities; its
+publisher counterpart has zero. Both are raw BIO tests, not results
+after serving calibration, score admission or Places rules.
+
+A separate oracle scores the actual packaged heads' native spans and
+calibrated mean grouped BIO probabilities at those **same** boundaries.
+`O` occupies a ranking position but is never emitted. Adding ranks is
+an oracle support set, not a threshold or promotion. Refit's missed
+gold cases on publisher dev:
+
+| Type | Right refit boundary, wrong type | Of those, in top 2 | In top 3 | No exact refit boundary |
+| --- | ---: | ---: | ---: | ---: |
+| City | 197 | 124 | 152 | 246 |
+| First name | 310 | 200 | 258 | 147 |
+| Last name | 279 | 142 | 207 | 205 |
+| Company name | 28 | 15 | 25 | 1,055 |
+
+Native union alone is not a safe chooser: city F1 is 0.7541 on the
+union compared with 0.7581 for the refit; company is 0.8156 vs
+0.8256, surname 0.8815 vs catalog 0.8857. Emitting every refit
+top-2 alternative adds 2,443 city false positives for 124 true
+positives and 1,687 first-name false positives for 200 true positives.
+For refit-native first-name spans with city in top 2, only 18 of
+600 should switch, while 549 are already correct. For the reverse
+direction, 29 of 293 should switch and 239 are already correct.
+The resulting ideal selector has only narrow headroom. Company
+mostly needs better boundaries, not the city/person selector.
+
+```sh
+cargo run --locked --release -p turbo-trainer-recipes --example pii_surname_audit -- \
+  "$EXPERIMENT" "$ENCODER" "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$CATALOG_BUNDLE" "$REFIT_BUNDLE"
+cargo run --locked --release -p turbo-trainer-recipes --example pii_role_oracle -- \
+  "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$CATALOG_BUNDLE" "$REFIT_BUNDLE" --probe
+```
+
+### Bounded chooser result (rejected)
+
+The frozen probe at `f05afd44be0745c6b297b97ec20fa2d750a580e2`
+could not lock a direction on its untouched training-persona
+calibration partition:
+
+| Direction | Fit eligible / true fixes | Calibration eligible / true fixes | Locked threshold |
+| --- | ---: | ---: | --- |
+| First name to city | 1,949 / 25 | 980 / 12 | Disabled |
+| City to first name | 823 / 33 | 400 / 17 | Disabled |
+
+Neither direction found at least ten correct flips with 90% precision.
+As designed, the dev replay made zero changes. TP / FP / FN for city
+stayed 1,562 / 554 / 443 and first name stayed 5,243 / 506 / 457,
+the exact native-refit values. Every other type and every boundary were
+unchanged. City F1 remained below the catalog; the probe did not pass.
+No serving or reserved holdout evaluation ran.
+
+The actionable data gap is reliable, exact-boundary role ambiguity:
+more real city versus person cases where the frozen head's alternative
+really is correct, with counterexamples where the native type must
+stay. For another selection experiment, label these cases on a new
+publisher-training or separately approved corpus, reserve whole name
+and context families for calibration, and leave independent dev/test
+unchanged. Company and surname also need separate real span-boundary
+data. These probes do not support changing the current decoder or
+admitting more alternatives by default.
