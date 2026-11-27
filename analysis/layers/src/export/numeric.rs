@@ -53,9 +53,9 @@ impl LayerCodec for Numbers {
         put_bools(&mut w, &self.negative)?;
         put_strs(&mut w, &self.coefficient)?;
         put_u32s(&mut w, &self.scale)?;
-        put_variants(&mut w, &MULTIPLIERS, &self.multiplier)?;
-        put_variants(&mut w, &MARKERS, &self.marker)?;
-        put_variants(&mut w, &NOTATIONS, &self.notation)?;
+        put_variants(&mut w, &MULTIPLIERS, &self.multiplier, "multiplier")?;
+        put_variants(&mut w, &MARKERS, &self.marker, "scale marker")?;
+        put_variants(&mut w, &NOTATIONS, &self.notation, "number notation")?;
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
@@ -125,7 +125,7 @@ impl LayerCodec for Ordinals {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
         put_spans(&mut w, &self.spans, cx)?;
-        put_variants(&mut w, &BASES, &self.base)?;
+        put_variants(&mut w, &BASES, &self.base, "ordinal base")?;
         put_i64s(&mut w, &self.offset)?;
         Ok(w.finish())
     }
@@ -194,12 +194,12 @@ impl LayerCodec for Times {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
         put_spans(&mut w, &self.spans, cx)?;
-        put_variants(&mut w, &TIME_KINDS, &self.kind)?;
-        put_variants(&mut w, &TIME_GRAINS, &self.grain)?;
+        put_variants(&mut w, &TIME_KINDS, &self.kind, "time kind")?;
+        put_variants(&mut w, &TIME_GRAINS, &self.grain, "time grain")?;
         w.usize(self.modifier.len())?;
         for m in &self.modifier {
-            put_variant(&mut w, &RELATIONS, m.relation);
-            put_variant(&mut w, &PORTIONS, m.portion);
+            put_variant(&mut w, &RELATIONS, m.relation, "relation")?;
+            put_variant(&mut w, &PORTIONS, m.portion, "portion")?;
         }
         put_opt_i64s(&mut w, &self.start)?;
         put_opt_i64s(&mut w, &self.end)?;

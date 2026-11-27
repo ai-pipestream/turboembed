@@ -207,28 +207,3 @@ pub(super) fn get_opt_i64s(r: &mut Reader<'_>) -> Result<Vec<Option<i64>>, Expor
     }
     Ok(values)
 }
-
-/// A fieldless enum as its position in `table`, the declared order.
-pub(super) fn put_variant<E: Copy + PartialEq>(w: &mut Writer, table: &[E], value: E) {
-    w.u8(table.iter().position(|v| *v == value).expect("a variant in the table") as u8);
-}
-
-pub(super) fn get_variant<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<E, ExportError> {
-    table.get(r.u8()? as usize).copied().ok_or_else(|| malformed(format!("a {what} outside the table")))
-}
-
-pub(super) fn put_variants<E: Copy + PartialEq>(w: &mut Writer, table: &[E], values: &[E]) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for v in values {
-        put_variant(w, table, *v);
-    }
-    Ok(())
-}
-
-pub(super) fn get_variants<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<Vec<E>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        values.push(get_variant(r, table, what)?);
-    }
-    Ok(values)
-}

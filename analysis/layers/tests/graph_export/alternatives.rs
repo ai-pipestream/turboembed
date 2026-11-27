@@ -49,6 +49,38 @@ fn alternatives_and_nbest_round_trip() {
     assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());
 }
 
+/// The export of a document holding only its tokens and [`lattice`],
+/// byte for byte. The lattice has `u32` columns (position and position
+/// length), a mode column, optional scores and optional forms, so a
+/// change to how any of those is written shows here as a change of
+/// bytes, whether or not its reader changed with it.
+const LATTICE: &[u8] = include_bytes!("../fixtures/alternatives.tgrf");
+
+#[test]
+fn a_lattice_exports_as_the_checked_in_bytes() {
+    let mut doc = Document::new(TEXT);
+    let by = Provenance::by("test");
+    let tokens = Tokens { spans: spans(&[(0, 5), (6, 11), (11, 12), (13, 16), (17, 20), (20, 21)]), sentence: None };
+    doc.add(&Key::DEFAULT, tokens, by.clone()).unwrap();
+    doc.add(&Key::DEFAULT, lattice(), by).unwrap();
+
+    let bytes = export(&doc, &codecs()).unwrap().to_bytes().unwrap();
+    if std::env::var_os("TURBO_UPDATE_FIXTURE").is_some() {
+        std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/alternatives.tgrf"), &bytes).unwrap();
+    }
+    assert_eq!(bytes, LATTICE, "export bytes differ from the checked-in fixture");
+
+    let back = import(&DocumentGraph::from_bytes(LATTICE).unwrap(), &codecs()).unwrap();
+    let (alt, want) = (back.get::<Alternatives<Tokens>>().unwrap(), lattice());
+    assert_eq!((alt.len(), alt.num_positions), (want.len(), want.num_positions));
+    for i in 0..want.len() as u32 {
+        let (got, want) = (alt.get(Ix::new(i)), want.get(Ix::new(i)));
+        assert_eq!((got.span, got.position, got.position_length), (want.span, want.position, want.position_length));
+        assert_eq!((got.score, got.form), (want.score, want.form), "item {i}");
+        assert!(got.mode == want.mode, "the modes of item {i}");
+    }
+}
+
 fn write_spans(w: &mut Writer, spans: &[Span]) {
     w.str("").unwrap();
     w.usize(spans.len()).unwrap();

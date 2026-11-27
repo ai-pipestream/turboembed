@@ -70,8 +70,8 @@ mod view_ref;
 mod wire;
 
 pub use columns::{
-    aligned_len, get_f64s, get_spans, get_spans_raw, get_tagset, get_u32s, get_variants, put_f64s, put_spans,
-    put_spans_raw, put_tagset, put_u32s, slice_spans_payload,
+    aligned_len, get_f64s, get_spans, get_spans_raw, get_tagset, get_u32s, get_variant, get_variants, put_f64s,
+    put_spans, put_spans_raw, put_tagset, put_u32s, put_variant, put_variants, slice_spans_payload,
 };
 pub use context::{ExportCx, ImportCx, LayerCodec, SliceCx, SlicedBody};
 pub use decode::import;

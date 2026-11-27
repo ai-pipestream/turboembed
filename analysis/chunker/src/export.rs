@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 
 use turbo_analysis::export::{
     Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, aligned_len, get_f64s,
-    get_u32s, get_variants, put_f64s, put_u32s,
+    get_u32s, get_variants, put_f64s, put_u32s, put_variants,
 };
 use turbo_analysis::{Document, Ix, Layer, Span, View};
 use turbo_analysis_layers::export::{get_strs, put_strs};
@@ -52,15 +52,6 @@ fn resolved<Target: Layer>(cx: &ImportCx) -> LayerRef {
     let name = Target::NAME.to_string();
     let instance = cx.resolved_instance(&name).to_owned();
     LayerRef { layer: name, instance }
-}
-
-fn put_variants<E: Copy + PartialEq>(w: &mut Writer, table: &[E], values: &[E], what: &str) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for &v in values {
-        let at = table.iter().position(|t| *t == v).ok_or_else(|| malformed(format!("a {what} outside its table")))?;
-        w.u8(u8::try_from(at).map_err(|_| malformed(format!("a {what} table longer than a u8 can index")))?);
-    }
-    Ok(())
 }
 
 /// A wire index into `Target`, refused before the typed index is
