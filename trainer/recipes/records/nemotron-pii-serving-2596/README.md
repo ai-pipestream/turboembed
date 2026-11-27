@@ -91,3 +91,45 @@ or an evaluation on the held-out inputs. The 600 paired dev documents
 are separate draws from the training generator, with the same template
 and name pools; this pilot does not demonstrate transfer to unseen
 names or contexts. No pilot weights entered the bundle or zoo.
+
+## Bounded dev-only pilot: lower synthetic share (rejected)
+
+The follow-on held lexical width at 128 and total training documents
+at 28,500. It kept the 22,500 publisher control rows, added 3,000 rows
+evenly spaced from the indices whose remainder modulo four is one,
+and retained every second synthetic row, starting with the first.
+For the extra publisher rows, choose group `g` from 0 through 22,499
+when integer division of `(g + 1) * 3000 / 22500` is larger than
+`g * 3000 / 22500`, then take row `4*g + 1`. Both fits kept the same
+seed, batch, number of steps per epoch, and original dev split,
+selected epoch 6, and never scored the test split. Corpus parsing
+validated the pinned publisher release; only train/dev feature files
+were present in the pilot cache.
+
+The 3,000 retained synthetic rows contain 7,135 city and 7,024 person
+spans; 2,598 rows contain both roles, and all 48 shared names appear
+in both roles across those rows.
+
+| Dev exact-span F1 | 6,000 synthetic rows | 3,000 synthetic rows |
+| --- | ---: | ---: |
+| All, full dev | 0.5805 | 0.5833 |
+| City, full dev | 0.7541 | 0.7544 |
+| Company name, full dev | 0.7712 | 0.7737 |
+| Last name, full dev | 0.8270 | 0.8253 |
+| City, paired synthetic dev only | 0.8617 | 0.8324 |
+| First name, paired synthetic dev only | 0.8594 | 0.8273 |
+
+The preregistered dev comparison required no drop on the full-dev and
+paired metrics before using any holdouts. The lower synthetic share
+fails that requirement: it further worsens last names and loses about
+three F1 points on each paired class. No calibration, serving export,
+or test run was attempted for this pilot.
+
+These two bounded pilots do not establish a safe model fix. A different
+data intervention would keep the paired-example budget and architecture
+fixed while replacing some generated rows with balanced context
+contrasts and replay of original organization and surname contexts. Use
+a dev slice that holds out names **and** sentence templates, alongside
+publisher dev, before trying the frozen tests. Keep the previously
+measured city gains, all three memo error counts, standalone person
+results, and corpus class scores as separate acceptance gates.
