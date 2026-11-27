@@ -347,3 +347,7 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, crate:
         files
     }))
 }
+
+#[cfg(test)]
+#[path = "xml_tests.rs"]
+mod tests;
