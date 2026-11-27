@@ -254,3 +254,78 @@ This rejects the tested generator and replacement, not the general
 hypothesis that token-matched contrasts could improve the model. The
 document count matched but the synthetic loss weight did not. No
 token-budget confirmation was run after this rejection.
+
+### Why the synthetic surname score was zero
+
+A dev-only replay used the frozen control and rejected candidate, the
+same cached feature rows, and the production core tagger's decoder.
+It matched the receipt scorer exactly on predictions and on the gold
+BIO tags. Every gold surname had `B-last_name I-last_name`. These
+are 600 scored instances from 128 distinct surname clauses, not 600
+independent surname constructions.
+
+| Gold surname coverage on the new synthetic dev | Control | Candidate |
+| --- | ---: | ---: |
+| Exact type and boundary | 0 | 0 |
+| Right type, wrong boundary | 199 | 478 |
+| Right boundary, wrong type | 30 | 10 |
+| Overlap with both wrong type and boundary | 321 | 98 |
+| No overlapping span | 50 | 14 |
+
+The candidate tagged the name token as a surname 478 times (381
+`I-last_name`, 97 `B-last_name`), but never tagged the preceding
+`del` or `von` as a surname. Both heads emitted only single-token
+surname spans on this set. The synthetic train families used
+`de`, `Van` and `St.`; the dev families intentionally use different
+particles as well as different names and contexts. On 12 fresh CPU
+probes holding context and name fixed across particle swaps, the
+candidate got 3/6 exact with `de` or `Van`, and 0/6 with `del` or
+`von`; the control got 0/12. This is a small diagnostic, not a score
+gate or proof the particle is the sole cause.
+
+The regression is not limited to those unfamiliar particles. On
+publisher dev, exact multiword surname matches went from 108/198 to
+90/198, and same-type partials rose from 74 to 89. Particle-led exact
+matches went from 99/165 to 82/165 (the `al` stratum was 81/129 to
+65/129). Publisher dev contains no gold multiword surname starting
+with `del` or `von`. This supports a learned boundary regression,
+not a bug in how the decoder joins well-formed BIO tags.
+
+```sh
+cargo run --locked --release -p turbo-trainer-recipes --example pii_surname_audit -- \
+  "$EXPERIMENT" "$ENCODER"
+```
+
+### Registered continuation: narrow, row-matched overlay
+
+Replace exactly 600 of the 6,000 legacy synthetic documents; retain
+the other 5,400 and their encoded rows byte-for-byte. A deterministic
+selection distributes edits proportionally within eligible legacy
+strata of city/first-name counts, word length, and non-`O` word
+count. Every new row preserves its original index, word count and
+count of non-`O` BIO words. Thus each seeded batch has the same
+number of documents, total word rows and BIO-labelled synthetic
+loss rows in both arms. The label and span-type distribution can
+change intentionally.
+
+The interventions are short four-role subject, `from` and `to`
+contrasts, with two- or three-word surnames (particles and other
+compound surnames), a mix of title and no-title contexts, and
+ordinary unlabelled uses of particle-like words. The earlier
+`del` and `von` dev targets and the reserved examples remain out of
+training. Use the same publisher subset, frozen control head, hash
+width, model, seed, batch/update schedule and dev sets and gates.
+Check additionally that the exact publisher-dev counts on the
+198 multiword surnames and the 165 particle-led subset do not
+regress. Report surname false positives on 12 fresh neutral particle
+probes separately; these do not select the checkpoint, replace a
+dev set or open a holdout. The runner asserts the cache and row
+equivalence before fitting.
+
+```sh
+cargo build --locked --release -p turbo-trainer-recipes \
+  --example pii_overlay_cache --example pii_contrast_fit
+target/release/examples/pii_overlay_cache "$ENCODER" "$EXPERIMENT/legacy" "$EXPERIMENT/overlay"
+target/release/examples/pii_contrast_fit \
+  "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$REFIT_HEAD_SPEC" "$EXPERIMENT" --overlay
+```

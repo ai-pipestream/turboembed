@@ -12,10 +12,10 @@ use turbo::manifest::HeadSpec;
 use turbo_trainer::{Config, Example};
 use turbo_trainer_recipes::cache::{CacheRecord, SplitRecord};
 use turbo_trainer_recipes::corpus::{Sentence, Task};
-use turbo_trainer_recipes::eval::{Metrics, Seen, evaluate};
-use turbo_trainer_recipes::nemotron_pii::{context_contrasts, read_pinned_train_dev, shared_names};
+use turbo_trainer_recipes::eval::{Metrics, Seen, evaluate, spans};
+use turbo_trainer_recipes::nemotron_pii::{context_contrasts, context_overlay, read_pinned_train_dev, shared_names};
 use turbo_trainer_recipes::receipt::EncoderRecord;
-use turbo_trainer_recipes::{run, safetensors};
+use turbo_trainer_recipes::{prior, run, safetensors};
 
 const HIDDEN: usize = 768;
 const HEAD_SHA: &str = "144017d505e46ed88b51b25443c992518a119d63608563a1ca01adc3e1e48696";
@@ -84,10 +84,9 @@ fn synthetic(
     examples(dir, &rec, sentences, labels, |_| true)
 }
 
-fn score(tagger: &TokenTagger, gold: &[Sentence], encoded: &[Example]) -> Metrics {
-    assert_eq!(gold.len(), encoded.len());
+fn predictions(tagger: &TokenTagger, encoded: &[Example]) -> Vec<Vec<String>> {
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), Work::default());
-    let predicted = encoded
+    encoded
         .iter()
         .map(|row| {
             let forms = row.forms().unwrap();
@@ -96,8 +95,41 @@ fn score(tagger: &TokenTagger, gold: &[Sentence], encoded: &[Example]) -> Metric
             tagger.decode(&scores, forms.len(), &mut tags).unwrap();
             tags.iter().map(|&tag| tagger.labels()[tag as usize].clone()).collect::<Vec<_>>()
         })
-        .collect::<Vec<_>>();
-    evaluate(Task::Bio, gold, &predicted, &Seen::default(), None)
+        .collect()
+}
+
+fn score(tagger: &TokenTagger, gold: &[Sentence], encoded: &[Example]) -> Metrics {
+    evaluate(Task::Bio, gold, &predictions(tagger, encoded), &Seen::default(), None)
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
+struct MatchCount {
+    gold: usize,
+    exact: usize,
+}
+
+fn publisher_boundaries(gold: &[Sentence], tagger: &TokenTagger, rows: &[Example]) -> [MatchCount; 2] {
+    let predictions = predictions(tagger, rows);
+    assert_eq!(gold.len(), predictions.len());
+    let mut counts = [MatchCount::default(); 2];
+    for (row, tags) in gold.iter().zip(&predictions) {
+        let got = spans(tags);
+        for span in spans(&row.labels).into_iter().filter(|(a, b, k)| b - a > 1 && k == "last_name") {
+            let fields: &[_] = if matches!(
+                row.words[span.0].to_ascii_lowercase().as_str(),
+                "al" | "el" | "de" | "del" | "van" | "von"
+            ) {
+                &[0, 1]
+            } else {
+                &[0]
+            };
+            for &i in fields {
+                counts[i].gold += 1;
+                counts[i].exact += usize::from(got.contains(&span));
+            }
+        }
+    }
+    counts
 }
 
 fn select(metrics: &Metrics, names: &[&str]) -> BTreeMap<String, f64> {
@@ -136,13 +168,59 @@ fn gate(control: &[Metrics], variant: &[Metrics]) -> Value {
     json!({"dev_gate_passed": pass, "sets": checks, "holdout_scored": false})
 }
 
+fn verify_overlay(
+    original_cache: &Path,
+    overlay_cache: &Path,
+    original_rows: &[Sentence],
+    edits: &[(usize, Sentence)],
+) {
+    let mut legacy = BufReader::new(File::open(original_cache.join("train.layer22.f32")).unwrap());
+    let mut candidate = BufReader::new(File::open(overlay_cache.join("train.layer22.f32")).unwrap());
+    let mut indices = edits.iter().peekable();
+    let (mut old, mut new) = (Vec::new(), Vec::new());
+    assert_eq!(edits.len(), context_overlay::REPLACEMENTS);
+    for (i, row) in original_rows.iter().enumerate() {
+        let len = row.words.len() * HIDDEN * 4;
+        old.resize(len, 0);
+        new.resize(len, 0);
+        legacy.read_exact(&mut old).unwrap();
+        candidate.read_exact(&mut new).unwrap();
+        if let Some((_, changed)) = indices.next_if(|(j, _)| i == *j) {
+            assert_eq!(row.words.len(), changed.words.len());
+            assert_eq!(
+                row.labels.iter().filter(|l| *l != "O").count(),
+                changed.labels.iter().filter(|l| *l != "O").count()
+            );
+            assert_ne!(old, new, "selected row {i} was not re-encoded");
+        } else {
+            assert_eq!(old, new, "unselected row {i} differs");
+        }
+    }
+    assert!(indices.next().is_none());
+    assert_eq!(legacy.read(&mut [0]).unwrap(), 0);
+    assert_eq!(candidate.read(&mut [0]).unwrap(), 0);
+    println!("verified 5,400 shared synthetic feature rows byte-for-byte and 600 per-row word/BIO matches");
+}
+
+fn particle_false_positives(tagger: &TokenTagger, features: &[Example], offsets: &[usize]) -> usize {
+    let got = predictions(tagger, features);
+    assert_eq!(got.len(), offsets.len());
+    got.iter()
+        .zip(offsets)
+        .filter(|(tags, i)| spans(tags).iter().any(|(a, b, k)| *a <= **i && **i < *b && k == "last_name"))
+        .count()
+}
+
 fn main() {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
-    assert_eq!(
-        args.len(),
-        4,
-        "pii_contrast_fit <publisher-corpus> <original-cache> <original-head.json> <experiment-dir>"
+    assert!(
+        (4..=5).contains(&args.len()),
+        "pii_contrast_fit <publisher-corpus> <original-cache> <original-head.json> <experiment-dir> [--overlay]"
     );
+    let overlay = args.get(4).is_some_and(|mode| {
+        assert_eq!(mode, "--overlay");
+        true
+    });
     let publisher = Path::new(&args[0]);
     let cache_dir = Path::new(&args[1]);
     let experiment = Path::new(&args[3]);
@@ -184,13 +262,48 @@ fn main() {
         ..Config::default()
     };
     let mut fitted = Vec::new();
-    for (name, directory, rows) in [("control", legacy, legacy_train), ("candidate", contrast, contrast_train)] {
+    let mut boundary_counts = Vec::new();
+    let mut neutral_counts = Vec::new();
+    let neutral = overlay.then(|| {
+        let (rows, offsets): (Vec<_>, Vec<_>) = context_overlay::particle_negatives().unwrap().into_iter().unzip();
+        let encoded = synthetic(&experiment.join("overlay/negative"), "dev", &cache.encoder, &rows, &labels);
+        (encoded, offsets)
+    });
+    let arms = if overlay {
+        let baseline = prior::read(&experiment.join("control"), &cache.encoder).unwrap();
+        assert_eq!(sha256_hex(&baseline.weights), "3130d49ed775838a4107f0fb463ec63904a4189ebcde8dec5e10d53b282e71c6");
+        assert_eq!(baseline.spec, spec);
+        let control = baseline.head(|get| TokenTagger::from_tensors(&spec, HIDDEN, get)).unwrap();
+        fitted.push(dev_sets.iter().map(|(gold, features)| score(&control, gold, features)).collect());
+        boundary_counts.push(publisher_boundaries(&publisher_dev, &control, &dev_sets[0].1));
+        let (features, offsets) = neutral.as_ref().unwrap();
+        neutral_counts.push(particle_false_positives(&control, features, offsets));
+        let mut new = legacy_train;
+        let overlay_dir = experiment.join("overlay");
+        let edits = context_overlay::edits(&new).unwrap();
+        let recorded: Vec<usize> =
+            serde_json::from_slice(&fs::read(overlay_dir.join("row-indices.json")).unwrap()).unwrap();
+        assert_eq!(recorded, edits.iter().map(|(i, _)| *i).collect::<Vec<_>>());
+        verify_overlay(&legacy, &overlay_dir, &new, &edits);
+        for (i, s) in edits {
+            new[i] = s;
+        }
+        vec![("overlay-head", overlay_dir, new)]
+    } else {
+        vec![("control", legacy, legacy_train), ("candidate", contrast, contrast_train)]
+    };
+    for (name, directory, rows) in arms {
         train.truncate(22_500);
         train.extend(synthetic(&directory, "train", &cache.encoder, &rows, &labels));
         assert_eq!(train.len(), 28_500);
         let (model, fit) = turbo_trainer::fit(&spec, HIDDEN, &train, &dev_sets[0].1, &config).unwrap();
         let tagger = model.to_token_tagger().unwrap();
         let metrics = dev_sets.iter().map(|(gold, features)| score(&tagger, gold, features)).collect::<Vec<_>>();
+        if overlay {
+            boundary_counts.push(publisher_boundaries(&publisher_dev, &tagger, &dev_sets[0].1));
+            let (features, offsets) = neutral.as_ref().unwrap();
+            neutral_counts.push(particle_false_positives(&tagger, features, offsets));
+        }
         let output = experiment.join(name);
         fs::create_dir(&output).unwrap();
         run::write(&output, "head.json", &spec_bytes).unwrap();
@@ -204,8 +317,22 @@ fn main() {
         println!("{name}: selected epoch {}; head {}", fit.best_epoch + 1, file.sha256);
         fitted.push(metrics);
     }
-    let outcome = gate(&fitted[0], &fitted[1]);
-    run::write(experiment, "dev-gate.json", &serde_json::to_vec_pretty(&outcome).unwrap()).unwrap();
+    let mut outcome = gate(&fitted[0], &fitted[1]);
+    if overlay {
+        let [before, after] = boundary_counts.as_slice() else { panic!("expected both publisher boundary receipts") };
+        assert_eq!(before[0], MatchCount { gold: 198, exact: 108 });
+        assert_eq!(before[1], MatchCount { gold: 165, exact: 99 });
+        let ok = before.iter().zip(after).all(|(a, b)| a.gold == b.gold && a.exact <= b.exact);
+        outcome["publisher_surname_boundary_gate"] = json!({
+            "pass":ok, "control":before, "overlay":after, "strata":["multiword", "particle_led"],
+        });
+        outcome["dev_gate_passed"] = json!(outcome["dev_gate_passed"] == true && ok);
+        outcome["neutral_particle_false_positives"] = json!({
+            "total":neutral.as_ref().unwrap().1.len(), "control":neutral_counts[0], "overlay":neutral_counts[1],
+        });
+    }
+    let report = if overlay { "overlay-dev-gate.json" } else { "dev-gate.json" };
+    run::write(experiment, report, &serde_json::to_vec_pretty(&outcome).unwrap()).unwrap();
     println!("{}", serde_json::to_string_pretty(&outcome).unwrap());
     if outcome["dev_gate_passed"] != true {
         std::process::exit(2);

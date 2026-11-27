@@ -11,7 +11,7 @@ pub const TRAIN: usize = 6_000;
 pub const DEV: usize = 600;
 pub const KINDS: [&str; 4] = ["city", "first_name", "last_name", "company_name"];
 
-const TRAIN_NAMES: &[&str] = &[
+pub(super) const TRAIN_NAMES: &[&str] = &[
     "Alton",
     "Arlen",
     "Ashford",

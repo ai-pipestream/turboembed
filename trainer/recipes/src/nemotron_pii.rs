@@ -12,6 +12,7 @@
 //! of the boundary (`90,000` `train`, `10,000` `dev`, `100,000` `test`).
 
 pub mod context_contrasts;
+pub mod context_overlay;
 pub mod shared_names;
 pub mod spans;
 
