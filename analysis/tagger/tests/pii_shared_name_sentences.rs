@@ -1,11 +1,12 @@
 //! #2398 and #2410 with the trained head: single sentences on names a
 //! person and a city share, the name once a person and once a city.
-//! Prints what the head reads on each name, with its second reading, and
-//! what the head with the Places pack makes of it, and counts how many
-//! names get the reading the sentence means. Ignored: run with
-//! `-- --ignored` where `TURBO_NEMOTRON_PII_BUNDLE` names the assembled
-//! bundle, and without it the test fails. The floors
-//! are those of `turbo-en-nemotron-pii-modernbert-base-1`.
+//! Gate the catalog head and the unreleased refit at their measured quality,
+//! then compare the eight city subjects from #2410 and both person memos.
+//! Set TURBO_NEMOTRON_PII_BUNDLE (catalog) and TURBO_NEMOTRON_PII_REFIT_BUNDLE
+//! (refit). Both must name the exact bundles measured in the training record.
+
+#[path = "common/pii_memo.rs"]
+mod pii_memo;
 
 use std::path::Path;
 
@@ -41,27 +42,31 @@ const PEOPLE: [(&str, &str); 20] = [
 ];
 
 /// Sentences that mean a city, and the name.
-const CITIES: [(&str, &str); 22] = [
+const REPORTED: [(&str, &str); 8] = [
     ("Paris is lovely in the spring.", "Paris"),
+    ("Madison passed a new zoning rule.", "Madison"),
+    ("Salem is where the old office was.", "Salem"),
+    ("Milan has two football clubs.", "Milan"),
+    ("Victoria lies on the southern tip of the island.", "Victoria"),
+    ("Austin has grown quickly over the past decade.", "Austin"),
+    ("Sydney hosted the games in 2000.", "Sydney"),
+    ("Orlando draws millions of tourists.", "Orlando"),
+];
+
+/// The other city cases in the original 22-sentence evaluation.
+const OTHER: [(&str, &str); 14] = [
     ("Columbus hosts the fair every August.", "Columbus"),
     ("Salem voted on the measure last week.", "Salem"),
-    ("Austin has grown quickly over the past decade.", "Austin"),
     ("Charlotte is a banking hub.", "Charlotte"),
     ("Sofia was founded thousands of years ago.", "Sofia"),
     ("We visited Florence last summer.", "Florence"),
-    ("Victoria lies on the southern tip of the island.", "Victoria"),
-    ("Sydney hosted the games in 2000.", "Sydney"),
-    ("Orlando draws millions of tourists.", "Orlando"),
     ("Dallas and Houston are four hours apart.", "Houston"),
     ("Denver sits a mile above sea level.", "Denver"),
     ("Dayton built the first airplanes.", "Dayton"),
     ("They left Salem at dawn.", "Salem"),
-    ("Madison passed a new zoning rule.", "Madison"),
     ("Phoenix reached 115 degrees.", "Phoenix"),
-    ("Salem is where the old office was.", "Salem"),
     ("We saw Columbus from the plane.", "Columbus"),
     ("The Dayton office still holds the files.", "Dayton"),
-    ("Milan has two football clubs.", "Milan"),
     ("Valencia floods most winters.", "Valencia"),
     ("The flight to Santiago was delayed.", "Santiago"),
 ];
@@ -109,12 +114,19 @@ fn count(tagger: &Analyzer, with_rules: &Analyzer, sentences: &[(&str, &str)], w
     (head, both)
 }
 
-#[test]
-#[ignore = "needs the assembled Nemotron PII bundle in TURBO_NEMOTRON_PII_BUNDLE"]
-fn single_sentences_on_names_a_person_and_a_city_share() {
-    let bundle_path = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE")
-        .expect("TURBO_NEMOTRON_PII_BUNDLE names the assembled Nemotron PII bundle");
-    let bundle_dir = turbo_pins::require(Path::new(&bundle_path));
+/// Counts from the user-facing head plus Places, alongside the head in isolation.
+struct Scores {
+    people: (usize, usize),
+    cities: (usize, usize),
+    reported: (usize, usize),
+    memo_errors: [(usize, usize); 2], // false cities and missed cities, per memo
+}
+
+fn measure(var: &str, expected: &str) -> Scores {
+    let path = std::env::var_os(var).unwrap_or_else(|| panic!("{var} must name the measured PII bundle"));
+    let bundle_dir = turbo_pins::require(Path::new(&path));
+    let (_, digest) = turbo_pins::digest(&bundle_dir).unwrap();
+    assert_eq!(digest, expected, "{var} contains the wrong pinned bundle");
     let open = || {
         PiiTagger::open(&bundle_dir, None, &EncoderOptions::default())
             .unwrap()
@@ -129,10 +141,43 @@ fn single_sentences_on_names_a_person_and_a_city_share() {
         .add(open().with_rules(PiiDetector::pack(Pack::Places)))
         .build()
         .unwrap();
-    println!("people (head right, head with rules right)");
     let people = count(&head, &with_rules, &PEOPLE, &["first-name", "last-name"]);
-    println!("cities (head right, head with rules right)");
-    let cities = count(&head, &with_rules, &CITIES, &["city"]);
-    println!("people: head {} of {}, with rules {}", people.0, PEOPLE.len(), people.1);
-    println!("cities: head {} of {}, with rules {}", cities.0, CITIES.len(), cities.1);
+    let reported = count(&head, &with_rules, &REPORTED, &["city"]);
+    let other = count(&head, &with_rules, &OTHER, &["city"]);
+    let cities = (reported.0 + other.0, reported.1 + other.1);
+    let memo_errors = [
+        ("places-person-names.txt", "labels-places-person.tsv", 13),
+        ("places-person-names-2.txt", "labels-places-person-2.tsv", 8),
+    ]
+    .map(|(file, labels, expected_gold)| {
+        let memo = pii_memo::read(&with_rules, file, labels);
+        assert_eq!(memo.gold_count, expected_gold, "{file}: the held-out gold changed");
+        assert!(memo.unread.is_empty(), "{file}: lost city readings {:?}", memo.unread);
+        (memo.false_cities.len(), memo.missed.len())
+    });
+    println!("{var}: people {people:?}/20, cities {cities:?}/22, reported {reported:?}/8, memo errors {memo_errors:?}");
+    Scores { people, cities, reported, memo_errors }
+}
+
+fn at_least(actual: (usize, usize), floor: (usize, usize), which: &str) {
+    assert!(actual.0 >= floor.0 && actual.1 >= floor.1, "{which}: (head, with Places) {actual:?} below {floor:?}");
+}
+
+#[test]
+#[ignore = "requires the pinned catalog and refitted Nemotron PII bundles"]
+fn single_sentences_on_names_a_person_and_a_city_share() {
+    let baseline =
+        measure("TURBO_NEMOTRON_PII_BUNDLE", "19d3fb87daac08f0361390809b747af638bc2dbb93e447695c3f5609fc735b6d");
+    let refit =
+        measure("TURBO_NEMOTRON_PII_REFIT_BUNDLE", "dd73330bc8bef5bc0f1b9c7b6c004cfbf6713fa1dadcc03a6238a159b6ddc3b7");
+    at_least(baseline.people, (10, 10), "catalog people");
+    at_least(baseline.cities, (4, 7), "catalog cities");
+    at_least(refit.people, (9, 9), "refit people");
+    at_least(refit.cities, (19, 20), "refit cities");
+    at_least(refit.reported, (6, 7), "refit reported subjects");
+    assert!(refit.reported.1 > baseline.reported.1, "the refit must retain more reported city subjects with Places");
+    for (i, (old, new)) in baseline.memo_errors.into_iter().zip(refit.memo_errors).enumerate() {
+        assert!(new.0 <= old.0 && new.1 <= old.1, "memo {} regressed: (false, missed) {old:?} -> {new:?}", i + 1);
+        assert!(new.0 <= [4, 3][i] && new.1 == 0, "refit memo {} exceeded its measured errors: {new:?}", i + 1);
+    }
 }
