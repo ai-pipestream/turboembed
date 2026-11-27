@@ -14,22 +14,6 @@ fn checked<L: Layer>(layer: L, cx: &ImportCx) -> Result<L, ExportError> {
     Ok(layer)
 }
 
-fn put_u32s(w: &mut Writer, values: &[u32]) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for &v in values {
-        w.u32(v);
-    }
-    Ok(())
-}
-
-fn get_u32s(r: &mut Reader<'_>) -> Result<Vec<u32>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        values.push(r.u32()?);
-    }
-    Ok(values)
-}
-
 fn put_opt_f64s(w: &mut Writer, values: &Option<Vec<f64>>) -> Result<(), ExportError> {
     match values {
         None => w.u8(0),
@@ -56,15 +40,6 @@ fn get_opt_f64s(r: &mut Reader<'_>) -> Result<Option<Vec<f64>>, ExportError> {
         }
         tag => return Err(malformed(format!("an optional column tag of {tag}"))),
     })
-}
-
-/// The item count of the already restored `Target` instance an
-/// aligned layer on this record is aligned to: the instance the
-/// record's provenance resolves `Target` to, else the default.
-fn aligned_len<Target: Layer>(cx: &ImportCx) -> Result<usize, ExportError> {
-    let name = Target::NAME.to_string();
-    let instance = cx.resolved_instance(&name).to_owned();
-    cx.layer_len(&LayerRef { layer: name, instance })
 }
 
 impl<L: Layer> LayerCodec for Alternatives<L> {
