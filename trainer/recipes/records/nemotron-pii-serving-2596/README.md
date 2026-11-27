@@ -479,3 +479,119 @@ and context families for calibration, and leave independent dev/test
 unchanged. Company and surname also need separate real span-boundary
 data. These probes do not support changing the current decoder or
 admitting more alternatives by default.
+
+### Catalog-preserving additive city audit (no eligible additions)
+
+The catalog+Places analyzer stays untouched. A proposed extra span
+must be an exact city in all three signals: independent Places,
+the calibrated refit head at the 0.50 serving bar, and that refit
+with Places. Any intersection with any catalog mention, including
+person, company or city, rules it out. Standalone mode has no
+proposal path. This experiment does not install an inference policy.
+
+The bundles could share encoder states in principle. The SHA-256 of
+137 identical non-head tensors (sorted name/dtype/shape and exact
+payloads) is
+`6827f1649bcfdffc4e75da97fa001aadb32542bef05c81da6127784d811885c2`.
+Both tokenizers have digest
+`9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1`.
+Both use the same ModernBERT architecture, layer 22, width 768,
+first-subword pooling and no layer mix. The measured audit still ran
+the existing CPU analyzers separately; it did not implement sharing.
+
+The full 10,000-row publisher dev cache (2,005 gold cities) yielded a
+broad shortlist of 294 proposal spans in 234 rows. This cached
+prescreen used 0.49 for prospective refit cities and omitted clear
+catalog city duplicates (0.55 or above); it is not an exhaustive
+uncached serving pass. Exact independent Places rejected 251 spans:
+20 had overlapping but different ranges, and 231 had no matching
+Places span (60 of those were gold). The real CPU analyzers replayed
+the 43 survivors in 38 rows at their own temperatures and the 0.50
+serving bar. One gold candidate failed neural admission; catalog+Places
+already emitted all other 42 (36 gold and six not gold). Thus the
+audited gate adds **0 true and 0 false** city spans. Of 16 fresh
+ambiguous and neutral examples, five had independent Places support;
+four were again catalog duplicates and one did not pass the refit
+neural bar. No new city or protected-span changes occurred.
+
+An acceptor cannot learn to select positives that never enter this
+gate. The same independent Places support is already used by the
+catalog, so requiring it is not an independent rescue for these
+cases. The next dataset would need genuine ambiguous city mentions
+that Places currently does not recognize, with human-labelled
+non-city lookalikes and existing person/company spans preserved. It
+would require a separately authorized acceptance design, not just a
+looser overlap or confidence rule. The original probes, all memos,
+and publisher test remained closed.
+
+```sh
+cargo run --locked --release -p turbo-trainer-recipes --example pii_city_shortlist -- \
+  "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$CATALOG_BUNDLE" "$REFIT_BUNDLE" > "$CITY_SHORTLIST"
+cargo run --locked --release -p turbo-tagger --example pii_city_rescue_audit -- \
+  "$CATALOG_BUNDLE" "$REFIT_BUNDLE" "$CITY_SHORTLIST"
+```
+
+### What the pinned publisher training corpus actually supports
+
+This inventory uses publisher `TRAIN` alone. The dataset is itself a
+published synthetic corpus, but these are its existing gold labels,
+not examples invented for this experiment. Duplicate local contexts
+are normalized over five words on either side, masking entities
+and numbers. Both locales of a persona count once where diversity
+is reported. For shared single-token surfaces, bipartite matching
+requires a distinct persona and context for each selected occurrence
+within each role and surface; the capacities are sums of per-surface
+minima, **not** a global cross-role/cross-surface persona-disjoint split.
+
+| Shared normalized surface | Any support | At least two in each role | Balanced pairs at that floor | At least five in each role | Pairs at that floor |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| City vs first name | 168 | 61 | 234 | 14 | 114 |
+| City vs last name | 286 | 77 | 225 | 5 | 43 |
+| City vs either person type | 385 | 119 | 418 | 19 | 162 |
+
+There are 1,864 multiword surnames across 1,252 personas and 1,486
+masked contexts. The `al` particle has 1,213 gold surname uses across
+808 personas and 978 contexts, and 112 unlabelled uses across 64
+personas and 60 contexts. This supports an `al` boundary experiment
+with genuine negatives. It does not support an assertion about
+generalizing to `del` and `von`: there are only five gold `del`
+instances across two personas, and no gold `von` instances. The
+reserved unseen evaluation and its gate stay unchanged.
+
+For company boundaries, the frozen refit ran over 15,000 other
+publisher training rows, grouped by persona and excluded from the
+chooser's training and calibration slices. There were 9,873 gold
+multiword company spans and 955 misses: 928 same-type partials, two
+other-type overlaps and 25 uncovered. The misses span 693 personas
+and 939 masked contexts. The company start token also appears as a
+gold single-token first name for 31 surfaces and 48 missed-company
+instances, with 288 first-name negatives. Only three surfaces have
+at least two independent persona/context marginals in both roles
+(upper capacity 13 pairs); only one has five (upper capacity eight).
+There is substantial ordinary boundary training support, but the
+common-name/company contrast is too sparse to treat as a robust
+independent class-disambiguation objective.
+
+The next candidate worth testing would warm-start both arms from
+the same catalog checkpoint. Keep the full pinned publisher
+objective and its negatives in the final fit; add only a small,
+separately accounted rehearsal term for authentic same-token city vs
+person contexts, attested multiword boundaries (especially `al` with
+neutral and typed negatives), and ordinary partial company spans.
+Do not replace the publisher mix to manufacture contrasts. Select
+the training objective in internal publisher TRAIN folds: reserve
+whole persona groups and normalized ambiguity surfaces and exclude
+their target occurrences from both arms before calibration; audit
+cross-fold intersections and recompute actual support after splitting.
+Use the same replay, bounded streamed batches, schedule and budget
+in both arms. A matching control still has to meet the shipped
+baseline. Keep the existing dev and serving/test comparisons and
+protected-class gates. This is a proposal, not a new fit or passing
+candidate; it needs bounded streamed replay rather than the current
+full-cache materialization.
+
+```sh
+cargo run --locked --release -p turbo-trainer-recipes --example pii_publisher_train_inventory -- "$PUBLISHER_CORPUS"
+cargo run --locked --release -p turbo-trainer-recipes --example pii_company_train_inventory -- \
+  "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$REFIT_BUNDLE"
+```
