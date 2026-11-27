@@ -63,3 +63,31 @@ For a new variant, select the checkpoint and fit temperature on dev
 only. Then run the same untouched corpus split and paired analyzer
 checks. Compare both false and missed city counts on each memo, rather
 than trading recall for precision inside one aggregate score.
+
+## Bounded dev-only pilot: smaller lexical table (rejected)
+
+This CPU pilot reused the layer-22 feature cache from the refit record.
+Both fits used the same 22,500 publisher training documents (zero-based
+indices divisible by four among the 90,000 publisher training rows),
+plus all 6,000 paired synthetic training documents. They kept complete
+documents and the layer-cache reader checked the full source dimensions
+and preserved source row offsets. Neither fit read the test feature
+file. Both selected epoch 6 on the unchanged 10,600-row dev split;
+seed 1, batch 128, learning rate 0.004, patience 4, six CPU workers.
+The sole comparison was 128 vs 64 dimensions in the hashed word table.
+
+| Dev exact-span F1 | Width 128 | Width 64 |
+| --- | ---: | ---: |
+| All, full dev | 0.5805 | 0.5821 |
+| City, full dev | 0.7541 | 0.7507 |
+| Company name, full dev | 0.7712 | 0.7752 |
+| Last name, full dev | 0.8270 | 0.8328 |
+| City, paired synthetic dev only | 0.8617 | 0.8625 |
+| First name, paired synthetic dev only | 0.8594 | 0.8563 |
+
+The narrower table raises overall dev F1 but lowers city F1 on full dev
+and person F1 on the paired portion. It was rejected before calibration
+or an evaluation on the held-out inputs. The 600 paired dev documents
+are separate draws from the training generator, with the same template
+and name pools; this pilot does not demonstrate transfer to unseen
+names or contexts. No pilot weights entered the bundle or zoo.
