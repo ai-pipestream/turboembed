@@ -4,6 +4,7 @@
 #   LABELS=turbo-ci,x86-64
 #   DOCKER_OPTS=--cpus 8 --memory 16g --memory-swap 16g -e CARGO_BUILD_JOBS=8
 #   DOCKER=docker
+#   WORK_DIR=/work/turbo-ci/x86-64-1   (see work-volumes.sh)
 # User= is an account with docker access and a gh login allowed to
 # create runners for the repository.
 [Unit]
