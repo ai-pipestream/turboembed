@@ -9,7 +9,14 @@ initialize and execute. It is Rust in `core/src/npu.rs` and
 `core/src/npu/`, and the core reaches it only through its
 `turbo_backend` table (`include/turbo/turbo_backend.h`). It is off by
 default: the `npu` feature of the `turbo` crate links it, and
-`turbo_version()` then names `npu`.
+`turbo_version()` then names `npu`. The Linux x86_64 and Windows
+x86_64 release archives are built with that feature (docs/release.md).
+On Windows the Intel NPU driver package installs the Level Zero
+loader. On Linux the loader is the distribution's own package and the
+NPU driver is Intel's separate linux-npu-driver release, and the user
+needs access to `/dev/accel/accel0` (usually the `render` group);
+[setup/intel-npu.md](setup/intel-npu.md) has both. Without the loader
+the archive still runs on cpu.
 
 It is not the `levelzero` backend. That one is the Intel GPU path: its
 own kernels, compiled from OpenCL C to SPIR-V, on the loader's GPU

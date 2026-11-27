@@ -47,7 +47,10 @@ them.
 cargo build --release -p turbo --features npu
 ```
 
-No build variables. `turbo_version()` names `npu`.
+No build variables. `turbo_version()` names `npu`. The Linux x86_64 and
+Windows x86_64 release archives are already built with this feature
+([../release.md](../release.md)); they still need the driver package
+above to find a device.
 
 ## A bundle
 

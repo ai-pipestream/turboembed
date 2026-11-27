@@ -1,12 +1,13 @@
 name: release
 
-# A tag v<version> publishes Linux x86_64 CUDA, macOS arm64 Metal,
-# Linux aarch64 CPU, Windows x86_64 CPU and Android CPU archives with
-# headers (the Android one holds the JNI binding's libraries alone), plus
-# turbo-kserve images on GHCR (docs/release.md). workflow_dispatch builds
-# and checks archives and images without publishing. The runners execute
-# CPU smoke checks only; GPU execution and timing belong to the records
-# in benchmarks/records.
+# A tag v<version> publishes Linux x86_64 (cpu, cuda and npu), macOS
+# arm64 Metal, Linux aarch64 CPU, Windows x86_64 (cpu and npu) and
+# Android CPU archives with headers (the Android one holds the JNI
+# binding's libraries alone), plus turbo-kserve images on GHCR
+# (docs/release.md). workflow_dispatch builds and checks archives and
+# images without publishing. The runners execute CPU smoke checks only;
+# GPU and NPU execution and timing belong to the records in
+# benchmarks/records.
 
 on:
   push:
@@ -71,17 +72,20 @@ jobs:
       - name: build
         env:
           TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
-        run: cargo build --release -p turbo --features cuda
+        run: cargo build --release -p turbo --features cuda,npu
       - name: build the gRPC server
         env:
           TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
-        run: cargo build --release -p turbo-kserve --features cuda
-      - name: the library and the server link no CUDA library dynamically
+        run: cargo build --release -p turbo-kserve --features cuda,npu
+      - name: the library and the server link no CUDA or Level Zero library dynamically
         run: |
           for f in target/release/libturbo.so target/release/turbo-kserve; do
             ldd "$f"
             if ldd "$f" | grep -qE 'libcu(dart|blas)'; then
               echo "$f links a CUDA library dynamically"; exit 1
+            fi
+            if ldd "$f" | grep -qE 'libze_'; then
+              echo "$f links a Level Zero library dynamically"; exit 1
             fi
           done
       - name: the header compiles as C11 and C++17
@@ -89,6 +93,19 @@ jobs:
           printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
           cc  -std=c11   -Wall -Wextra -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
           c++ -std=c++17 -Wall -Wextra -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"
+      - name: a C program links the library and it lists the cuda and npu backends; the server starts
+        run: |
+          printf '#include <stdio.h>\n#include <turbo/turbo.h>\nint main(void) { puts(turbo_version()); return 0; }\n' > "$RUNNER_TEMP/v.c"
+          cc -std=c11 -Wall -Wextra -Werror -Iinclude "$RUNNER_TEMP/v.c" -Ltarget/release -lturbo \
+            -Wl,-rpath,"$PWD/target/release" -o "$RUNNER_TEMP/v"
+          v="$("$RUNNER_TEMP/v")"
+          echo "$v"
+          case "$v" in *" cuda npu cpu") ;; *) echo "turbo_version() does not list cuda, npu and cpu"; exit 1 ;; esac
+          # The hosted runner has no Level Zero loader, so this is the no-loader path:
+          # the library loads and the server starts.
+          set +e; target/release/turbo-kserve --listen 127.0.0.1:0 2> "$RUNNER_TEMP/usage"; rc=$?; set -e
+          head -1 "$RUNNER_TEMP/usage"
+          [ "$rc" = 2 ]
       - name: package
         id: package
         run: |
@@ -107,7 +124,7 @@ jobs:
           cp docs/release.md "$name/README.md"
           {
             echo "turboembed ${tag}, commit ${GITHUB_SHA}"
-            echo "linux x86_64, cpu and cuda backends; bin/turbo-kserve, the gRPC server, with the same"
+            echo "linux x86_64, cpu, cuda and npu backends; bin/turbo-kserve, the gRPC server, with the same"
             echo "built with rustc $(rustc --version | cut -d' ' -f2) and CUDA ${CUDA_VERSION} (nvcc $(/usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | grep -oE 'V[0-9.]+'))"
             echo "CUDA machine code for sm ${TURBO_CUDA_ARCH}, and PTX for the last"
             echo "driver: any that supports CUDA ${CUDA_VERSION%%.*}.x"
@@ -255,8 +272,9 @@ jobs:
             ${{ steps.package.outputs.name }}.BUILD
           if-no-files-found: error
 
-  # The cpu backend alone, with the MSVC toolchain: turbo.dll, its import
-  # library, and the server, in a zip.
+  # The cpu and npu backends, with the MSVC toolchain: turbo.dll, its import
+  # library, and the server, in a zip. The npu backend opens ze_loader.dll at
+  # run time, so a runner without Intel's NPU driver still loads.
   windows-x86_64:
     runs-on: windows-latest
     defaults:
@@ -270,13 +288,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98
       - name: build
-        run: cargo build --locked --release -p turbo -p turbo-kserve
-      - name: the library loads and lists the cpu backend; the server starts
+        run: cargo build --locked --release -p turbo -p turbo-kserve --features npu
+      - name: the library loads and lists the npu and cpu backends; the server starts
         run: |
           v="$(python -c "import ctypes, os; l = ctypes.CDLL(os.path.abspath('target/release/turbo.dll')); l.turbo_version.restype = ctypes.c_char_p; print(l.turbo_version().decode())")"
           echo "$v"
-          case "$v" in *" cpu") ;; *) echo "turbo_version() does not end with cpu"; exit 1 ;; esac
-          # No model and no --admin is a usage error, exit 2: the binary loads and parses.
+          case "$v" in *" npu cpu") ;; *) echo "turbo_version() does not list npu and cpu"; exit 1 ;; esac
+          # The hosted runner has no Intel NPU driver, so this is the no-loader path:
+          # the DLL loads and the server starts. No model and no --admin is a usage
+          # error, exit 2: the binary loads and parses.
           set +e; target/release/turbo-kserve.exe --listen 127.0.0.1:0 2> "$RUNNER_TEMP/usage"; rc=$?; set -e
           head -1 "$RUNNER_TEMP/usage"
           [ "$rc" = 2 ]
@@ -296,7 +316,7 @@ jobs:
           cp docs/release.md "$name/README.md"
           {
             echo "turboembed ${tag}, commit ${GITHUB_SHA}"
-            echo "windows x86_64 (MSVC), cpu backend; bin/turbo-kserve.exe, the gRPC server, with the same"
+            echo "windows x86_64 (MSVC), cpu and npu backends; bin/turbo-kserve.exe, the gRPC server, with the same"
             echo "built with rustc $(rustc --version | cut -d' ' -f2) for $(rustc -vV | sed -n 's/^host: //p')"
           } > "$name/BUILD"
           7z a -tzip "$name.zip" "$name" > /dev/null

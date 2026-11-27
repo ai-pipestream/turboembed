@@ -257,6 +257,11 @@ stubs must be regenerated.
 
 ### Added
 
+- The Windows x86_64 and Linux x86_64 release archives include the npu
+  backend. The backend opens the Level Zero loader at run time, so a
+  machine without Intel's NPU driver package lists no npu device and
+  keeps working on cpu. The published cpu image does not carry npu
+  (docs/release.md) (#2452).
 - `turbo_embed_options.layer_alone` (field 10, in the struct's spare
   word, so its size is unchanged): with `layers` K above 1 on a range
   write, 1 pools each range from the first of those K layers alone,
