@@ -595,3 +595,52 @@ cargo run --locked --release -p turbo-trainer-recipes --example pii_publisher_tr
 cargo run --locked --release -p turbo-trainer-recipes --example pii_company_train_inventory -- \
   "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$REFIT_BUNDLE"
 ```
+
+### Registered bounded warm-start replay
+
+One paired experiment starts both arms from the identical pinned
+catalog weights. Each sees every original publisher TRAIN row once.
+The only difference is matched supplementary examples: at most 24
+pairs in each of six attested cases (city, first name, clipped
+multiword `al` surname, neutral unlabelled `al`, partial full
+company, and first-name contexts with a false company mention).
+Preflight requires at least eight pairs per case, globally unique
+source personas among supplementary rows, and exact word and
+non-`O) counts within every pair. Each supplemental row is repeated
+four times and interleaved at the same indices in both arms. The
+ordinary control rows share the case's gold role or neutral channel
+and exact loss denominators; target rows are selected from pinned
+TRAIN labels and original catalog errors, never publisher dev.
+
+Schedule: one pass per arm, 128 documents/update, fixed seed 2596
+over sequential cache chunks, AdamW with initial learning rate
+0.00008, decay 0.01, clipping 5, no warmup. Six low-priority CPU
+workers and a 32 GiB cap; read one batch from the layer-22 feature
+file rather than expanding the full corpus. No early stopping or
+learning-rate selection. The TRAIN inventory is descriptive only:
+full replay sees its rows, so none of those checks is called an
+independent dev partition. The independent gate remains publisher
+dev. Native raw exact-span precision and recall (micro and each
+of city, first name, surname and company) must not drop below
+either catalog or the matched replay control. City must improve
+over control and neutral particle/company false positives may not
+increase relative to either. No gates are supplanted: a survivor
+would still require the previously reserved original serving
+checks and corpus gates before changing anything in production.
+
+The initial one-sixth TRAIN prescreen supplied only two exact-matched
+city pairs, so it stopped before fitting. The frozen preflight scans
+all shared city/person and rare `al` TRAIN rows, retaining the fixed
+persona sixth for companies. No match constraint or dev gate changed.
+
+The expanded preflight found 133 word/BIO-matched pairs (22 city,
+24 given name, 15 `al` surname, 24 neutral `al`, 24 partial company,
+24 false company). Both arms therefore have 90,000 original rows
+and 532 supplementary rows, with 708 matched updates.
+
+```sh
+cargo run --locked --release -p turbo-trainer-recipes --example pii_warm_replay -- \
+  "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$CATALOG_BUNDLE" "$REPLAY_PLAN" --plan
+cargo run --locked --release -p turbo-trainer-recipes --example pii_warm_replay -- \
+  "$PUBLISHER_CORPUS" "$PUBLISHER_CACHE" "$CATALOG_BUNDLE" "$REPLAY_PLAN" --fit "$REPLAY_OUTPUT"
+```

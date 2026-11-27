@@ -38,6 +38,7 @@ pub mod open_span;
 pub mod parser;
 pub mod real;
 pub mod relation;
+pub mod replay;
 pub mod rng;
 pub mod scale;
 mod shapes;
