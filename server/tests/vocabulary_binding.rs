@@ -375,7 +375,8 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
     assert_eq!(matched_glossary(&over_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
 
     // GLiNER bundles also advertise and apply their bound default vocabulary (#2036).
-    let gliner_loaded = ac.load_bundle(load_req("bound-gliner", gliner_fixture::package())).await.unwrap().into_inner();
+    let gliner_load = LoadBundleRequest { select_device: true, ..load_req("bound-gliner", gliner_fixture::package()) };
+    let gliner_loaded = ac.load_bundle(gliner_load).await.unwrap().into_inner();
     assert_eq!(gliner_loaded.capabilities.as_ref().unwrap().vocabulary, Some(bundle_vocab.clone()));
     let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
     assert_eq!(caps.bundles.iter().find(|b| b.name == "bound-gliner").unwrap().vocabulary, Some(bundle_vocab.clone()));
