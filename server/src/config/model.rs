@@ -8,7 +8,7 @@ use crate::api::names;
 pub enum Device {
     /// A runtime device index, for turbo_context_create.
     Index(u32),
-    /// The index turbo_runtime_select gives for TURBO_TASK_EMBED.
+    /// The index turbo_runtime_select gives for the bundle's task.
     Select,
 }
 

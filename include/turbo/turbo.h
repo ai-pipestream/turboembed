@@ -355,11 +355,9 @@ int32_t turbo_runtime_capability(turbo_runtime *rt, uint32_t index, uint32_t tas
                                  turbo_capability *out, turbo_error *err);
 
 /* The device that will run task fastest here: the highest capability status
- * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. Embedding excludes
- * CPUs; reranking and extractive QA include them, and their cells tie as experimental
- * until a task record backs one, so a GPU listed before the CPU is chosen. Reranking
- * runs only on the CPU and CUDA, so on other GPUs it selects the CPU. Among devices
- * that still tie, the first in device order. reason
+ * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. A CPU is
+ * never selected, for any task; name its index explicitly to run on it. Among
+ * devices that still tie, the first in device order. reason
  * receives one line saying why, if non-NULL and reason_len is not 0.
  * TURBO_E_DEVICE_NOT_FOUND when nothing offers the task. */
 int32_t turbo_runtime_select(turbo_runtime *rt, uint32_t task, uint32_t *out,

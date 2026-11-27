@@ -195,9 +195,8 @@ public abstract class SessionConformance {
             assertEquals(1, one.embed(List.of(texts.get(0))).length);
             assertEquals(CAPACITY, code(() -> one.embed(texts)));
         }
-        // Reranking runs on the CPU wherever no GPU offers it, so selecting for it always opens.
-        try (TurboSession picked = binding().openSession(bundle,
-                TurboSessionOptions.fastestFor(TurboSessionOptions.Task.RERANK))) {
+        // An explicit CPU index is allowed for every task.
+        try (TurboSession picked = binding().openSession(bundle, TurboSessionOptions.onDevice(0))) {
             assertTrue(picked.modelInfo().device() >= 0);
             assertEquals(32, picked.embed(texts)[0].length);
         }
