@@ -128,8 +128,17 @@ or test run was attempted for this pilot.
 These two bounded pilots do not establish a safe model fix. A different
 data intervention would keep the paired-example budget and architecture
 fixed while replacing some generated rows with balanced context
-contrasts and replay of original organization and surname contexts. Use
-a dev slice that holds out names **and** sentence templates, alongside
-publisher dev, before trying the frozen tests. Keep the previously
+contrasts and replay of original organization and surname contexts.
+The current synthetic family assigns only city and first-name labels;
+it cannot directly rehearse organization names or surnames. Include
+the same unfamiliar token in city subjects, ordinary human actions,
+multi-word full names, and company names (e.g. a municipal subject,
+an employee with a family name, and a business suffix), including
+matched clauses after `from` and `to`. Build those contrasts with
+new name pools, independent authored templates, and no copied memo or
+probe strings. Split names **and** template families before generation,
+verify exact text and normalized-template disjointness from the reserved
+probes, and gate on this separate synthetic dev and publisher dev
+before trying the frozen tests. Keep the previously
 measured city gains, all three memo error counts, standalone person
 results, and corpus class scores as separate acceptance gates.
