@@ -374,3 +374,22 @@ and match class support rather than adding synthetic particles alone.
 Measure exact boundaries on the frozen publisher dev strata and
 neutral-particle errors first; the multiword decoder itself should
 not be changed to force a match.
+
+### Registered bounded chooser probe
+
+The separate type probe considers **only** an already decoded city or
+first-name span where the opposite type is in the same refit head's
+two highest grouped scores at those exact boundaries. Same-head inputs
+are grouped probabilities and fixed projections of context states,
+not names, token lists, or gold type features. It fits a small logistic
+chooser for each direction. All boundaries and all other typed
+spans must be identical to the native refit.
+
+The fit uses 30,000 publisher training rows; calibration uses 15,000
+other rows. Both locales of a publisher persona stay together.
+A direction is disabled unless held-in calibration reaches at least
+90% correct and at least ten exact fixes. After locking these choices,
+report raw publisher dev TP/FP/FN exactly once. Both city and
+first-name F1 must meet **both** native references and unrelated
+outputs cannot change. This is a partial probe, not a reason to open
+the unchanged serving holdout or claim company or surname recovery.
