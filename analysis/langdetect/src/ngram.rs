@@ -411,6 +411,12 @@ mod tests {
         // FNV-1a of the UTF-8 bytes c3 a9 is 0x1e9de8c1, and U+00E9 is there
         // twice.
         assert_eq!(features("\u{e9}\u{e9}", (1, 1), 1000), BTreeMap::from([(0x1e9d_e8c1 % 1000, 2.0)]));
+        // And two with an order, which a single character has not: the bytes
+        // of a window are hashed in text order. `ab` is 61 62, 0x4d2505ca;
+        // U+00E9 U+65E5 is c3 a9 e6 97 a5, 0xb2fcb3a9. Read the other way
+        // round they are 0x3c2ba6cc and 0xe1928749, in other buckets.
+        assert_eq!(features("ab", (2, 2), 1000), BTreeMap::from([(0x4d25_05ca % 1000, 1.0)]));
+        assert_eq!(features("\u{e9}\u{65e5}", (2, 2), 1000), BTreeMap::from([(0xb2fc_b3a9 % 1000, 1.0)]));
     }
 
     #[test]
