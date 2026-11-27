@@ -79,7 +79,7 @@ async fn serve() -> (Server, AnalysisServiceClient<tonic::transport::Channel>, B
             precision: 0,
             max_batch: 0,
             max_seq: 0,
-            select_device: false,
+            select_device: true,
             user: String::new(),
             vocabulary: None,
         })

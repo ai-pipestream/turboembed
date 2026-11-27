@@ -37,6 +37,7 @@ async fn serve() -> (Server, AnalysisServiceClient<tonic::transport::Channel>) {
             bundle: fixture::package().to_string_lossy().into_owned(),
             device: 0,
             sessions: 1,
+            select_device: true,
             ..Default::default()
         })
         .await
