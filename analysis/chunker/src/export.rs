@@ -5,10 +5,14 @@
 
 use std::marker::PhantomData;
 
-use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer};
+use turbo_analysis::export::{
+    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, aligned_len, get_f64s,
+    get_u32s, get_variants, put_f64s, put_u32s,
+};
 use turbo_analysis::{Document, Ix, Layer, Span, View};
+use turbo_analysis_layers::export::{get_strs, put_strs};
 use turbo_analysis_layers::{
-    Aspects, Chunks, Entities, IncivilityLabel, IncivilityScores, Levels, Polarity, Sentences, Strs, Structure, Tokens,
+    Aspects, Chunks, Entities, IncivilityLabel, IncivilityScores, Levels, Polarity, Sentences, Structure, Tokens,
 };
 
 use crate::entity::ChunkEntities;
@@ -50,60 +54,6 @@ fn resolved<Target: Layer>(cx: &ImportCx) -> LayerRef {
     LayerRef { layer: name, instance }
 }
 
-/// The item count of the already restored `Target` instance an
-/// aligned layer on this record is aligned to.
-fn aligned_len<Target: Layer>(cx: &ImportCx) -> Result<usize, ExportError> {
-    cx.layer_len(&resolved::<Target>(cx))
-}
-
-fn put_strs(w: &mut Writer, strs: &Strs) -> Result<(), ExportError> {
-    w.usize(strs.len())?;
-    for s in strs.iter() {
-        w.str(s)?;
-    }
-    Ok(())
-}
-
-fn get_strs(r: &mut Reader<'_>) -> Result<Strs, ExportError> {
-    let mut strs = Strs::default();
-    for _ in 0..r.usize()? {
-        strs.push(&r.string()?);
-    }
-    Ok(strs)
-}
-
-fn put_u32s(w: &mut Writer, values: &[u32]) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for &v in values {
-        w.u32(v);
-    }
-    Ok(())
-}
-
-fn get_u32s(r: &mut Reader<'_>) -> Result<Vec<u32>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        values.push(r.u32()?);
-    }
-    Ok(values)
-}
-
-fn put_f64s(w: &mut Writer, values: &[f64]) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for &v in values {
-        w.f64(v);
-    }
-    Ok(())
-}
-
-fn get_f64s(r: &mut Reader<'_>) -> Result<Vec<f64>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        values.push(r.f64()?);
-    }
-    Ok(values)
-}
-
 fn put_variants<E: Copy + PartialEq>(w: &mut Writer, table: &[E], values: &[E], what: &str) -> Result<(), ExportError> {
     w.usize(values.len())?;
     for &v in values {
@@ -111,15 +61,6 @@ fn put_variants<E: Copy + PartialEq>(w: &mut Writer, table: &[E], values: &[E], 
         w.u8(u8::try_from(at).map_err(|_| malformed(format!("a {what} table longer than a u8 can index")))?);
     }
     Ok(())
-}
-
-fn get_variants<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<Vec<E>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        let at = r.u8()? as usize;
-        values.push(table.get(at).copied().ok_or_else(|| malformed(format!("a {what} discriminant of {at}")))?);
-    }
-    Ok(values)
 }
 
 /// A wire index into `Target`, refused before the typed index is

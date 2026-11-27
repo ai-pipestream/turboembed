@@ -3,10 +3,10 @@
 //! the graph.
 
 use turbo_analysis::export::{
-    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, get_spans, put_spans,
+    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, get_spans, get_variants, put_spans,
 };
 use turbo_analysis::{Document, Layer, Span, Spans};
-use turbo_analysis_layers::Strs;
+use turbo_analysis_layers::export::{get_strs, put_strs};
 
 use crate::{
     ArtifactKind, Artifacts, AssetEncoding, AssetFormat, Assets, Corrections, Emoji, EmojiKind, Noise, NoiseSeverity,
@@ -54,41 +54,12 @@ fn put_variant<E: Copy + PartialEq>(w: &mut Writer, table: &[E], value: E, what:
     Ok(())
 }
 
-fn get_variant<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<E, ExportError> {
-    let at = r.u8()? as usize;
-    table.get(at).copied().ok_or_else(|| malformed(format!("a {what} discriminant of {at}")))
-}
-
 fn put_variants<E: Copy + PartialEq>(w: &mut Writer, table: &[E], values: &[E], what: &str) -> Result<(), ExportError> {
     w.usize(values.len())?;
     for &v in values {
         put_variant(w, table, v, what)?;
     }
     Ok(())
-}
-
-fn get_variants<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<Vec<E>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        values.push(get_variant(r, table, what)?);
-    }
-    Ok(values)
-}
-
-fn put_strs(w: &mut Writer, strs: &Strs) -> Result<(), ExportError> {
-    w.usize(strs.len())?;
-    for s in strs.iter() {
-        w.str(s)?;
-    }
-    Ok(())
-}
-
-fn get_strs(r: &mut Reader<'_>) -> Result<Strs, ExportError> {
-    let mut strs = Strs::default();
-    for _ in 0..r.usize()? {
-        strs.push(&r.string()?);
-    }
-    Ok(strs)
 }
 
 /// Every fragment inside the text of the view the spans are in, on
