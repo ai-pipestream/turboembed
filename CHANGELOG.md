@@ -472,6 +472,11 @@ stubs must be regenerated.
   does, so a graph whose `turbo:pii-edits` name a rule with no policy
   digest is `INVALID_ARGUMENT` before any audit call. A release build
   wrote the audit event for it and released the values (#2541).
+- cuda, built with `cuda-cublas`: `turbo_session_create` could fail with
+  `TURBO_E_RUNTIME` (`cudaErrorStreamCaptureInvalidated`) when another
+  thread released a context at the same time, because `cublasDestroy`
+  synchronizes the device in the middle of the session's graph capture.
+  Captures and cuBLAS handle releases now take turns (#2548).
 - Server flags and variables, `--model` settings and `turbo-kserve health`:
   a value that is refused, or an unknown `health` argument, is described
   by its length in the error and never repeated (#2196).

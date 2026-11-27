@@ -527,6 +527,10 @@ in #2454.
   more; the bins past `max_batch` × `max_seq` do not exist for the
   session) whose kernel choices differ, all bins sharing one graph when
   they choose alike, as they do unless their choices were forced apart.
+  The process captures one graph at a time, and a context's cuBLAS
+  handle is released only between captures: `cublasDestroy`
+  synchronizes the device, which would invalidate a capture running on
+  another thread, on any context.
   With more than one graph, `embed_write` counts the packed tokens on
   the host and the run launches its bin's graph; with one, it counts
   nothing.

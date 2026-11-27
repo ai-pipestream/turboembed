@@ -494,10 +494,19 @@ constexpr uint32_t LOG_WARNING = 1;
 constexpr uint32_t LOG_INFO = 2;
 constexpr uint32_t LOG_DEBUG = 3;
 
+/* Held across each graph capture and each release of a cuBLAS handle.
+ * cublasDestroy synchronizes the device, and a synchronization that
+ * lands inside another thread's capture invalidates that capture, even
+ * one on another context's stream in thread-local mode. */
+std::mutex capture_lock;
+
 void release_context(Context *c) {
     DeviceScope scope(c->ordinal);
 #ifdef TURBO_CUDA_CUBLAS
-    if (c->blas) cublasDestroy(c->blas);
+    if (c->blas) {
+        std::lock_guard<std::mutex> g(capture_lock);
+        cublasDestroy(c->blas);
+    }
 #endif
     if (c->stream) cudaStreamDestroy(c->stream);
     if (c->workspace) cudaFree(c->workspace);
@@ -2396,6 +2405,9 @@ int32_t encode_rotary(Session &s, int bin, bool taps, turbo_error *err) {
 int32_t capture(Session &s, int bin, bool taps, Graph *out, turbo_error *err) {
     cudaStream_t st = s.ctx->stream;
     out->bin = bin;
+    // No cuBLAS handle is released on another thread while the capture
+    // runs (capture_lock).
+    std::lock_guard<std::mutex> g(capture_lock);
     TRY_CUDA(cudaStreamBeginCapture(st, cudaStreamCaptureModeThreadLocal), "capturing the run");
     const int32_t rc = encode(s, bin, taps, err);
     cudaGraph_t graph = nullptr;
