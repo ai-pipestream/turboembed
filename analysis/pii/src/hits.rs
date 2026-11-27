@@ -169,9 +169,14 @@ impl Hits {
         self.hits.iter().any(|h| h.detector != detector && h.rejected.is_none() && Span::new(h.start, h.end) == span)
     }
 
-    /// Takes out `detector`'s candidates whose span is one of `spans`.
-    pub(crate) fn drop_spans(&mut self, detector: PiiDetectorRef, spans: &[Span]) {
-        self.hits.retain(|h| h.detector != detector || !spans.contains(&Span::new(h.start, h.end)));
+    /// Rejects matching candidates without deleting their audit rows or
+    /// replacing an earlier rejection reason.
+    pub(crate) fn reject_spans(&mut self, detector: PiiDetectorRef, spans: &[Span], reason: RejectReason) {
+        for h in &mut self.hits {
+            if h.detector == detector && h.rejected.is_none() && spans.contains(&Span::new(h.start, h.end)) {
+                h.rejected = Some(reason);
+            }
+        }
     }
 
     /// Marks the candidate added last as rejected for `reason`: it gets

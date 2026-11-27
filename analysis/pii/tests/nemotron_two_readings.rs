@@ -4,8 +4,8 @@
 //! score, the threshold decides which become mentions, and the less
 //! likely reading never takes the place of the likelier one.
 
-use turbo_analysis::{Layer, Span, ViewId};
-use turbo_analysis_layers::{PiiDisposition, PiiKind, RejectReason};
+use turbo_analysis::{Ix, Layer, Span, ViewId};
+use turbo_analysis_layers::{PiiDisposition, PiiEvidence, PiiKind, PiiScoreKind, RejectReason};
 use turbo_pii::nemotron::{ModelCandidate, ModelProvenance, ModelResolution, resolve_model_with_rules};
 use turbo_pii::{Pack, PiiDetector, nemotron_custom_kinds};
 
@@ -104,4 +104,58 @@ fn the_second_reading_is_no_person_span_that_drops_the_city() {
     // A threshold under both gives the same.
     let (mentions, _) = read(None, TEXT, (0.72, 0.12), Some(0.1));
     assert_eq!(mentions.len(), 2);
+}
+
+#[test]
+fn suppressed_places_hit_and_both_scored_readings_remain_auditable() {
+    let rules = PiiDetector::pack(Pack::Places);
+    let kinds = nemotron_custom_kinds();
+    let first = kinds.find("first-name").unwrap();
+    let start = TEXT.find("Paris").unwrap() as u32;
+    let span = Span::new(start, start + 5);
+    let model = [
+        ModelCandidate { span, kind: first, probability: 0.70 },
+        ModelCandidate { span, kind: PiiKind::City, probability: 0.20 },
+    ];
+    let opts = ModelResolution {
+        rules: Some(&rules),
+        model_kinds: &kinds,
+        provenance: PROVENANCE,
+        min_score: Some(0.5),
+        extra_allow: None,
+    };
+    let (pii, audit) = resolve_model_with_rules(TEXT, ViewId::SOURCE, &opts, &model).unwrap();
+    audit.check_against(&pii).unwrap();
+    let mentions: Vec<_> = pii.mentions().map(|m| (m.span, pii.kind_name(m.kind).unwrap())).collect();
+    assert_eq!(mentions, [(span, "first-name")], "only the same person is admitted");
+
+    let rows: Vec<_> = audit.candidates().collect();
+    // Independent Places already emitted the unscored city. The merged
+    // result should report why that row lost instead of erasing it.
+    let (_, independent) = rules.layer_with_candidates(TEXT, ViewId::SOURCE);
+    let city = independent.candidates().find(|c| c.span == span && c.kind == PiiKind::City).unwrap();
+    let source = independent.detectors.get(city.detector);
+    assert_eq!(source.map(|(id, _)| id), Some("turbo-pii:city"));
+    let rejected_city = rows.iter().find(|r| audit.detectors.get(r.detector) == source).expect("missing Places row");
+    assert_eq!(
+        (rejected_city.span, rejected_city.kind, rejected_city.evidence, rejected_city.score),
+        (span, PiiKind::City, city.evidence, None)
+    );
+    assert_eq!(rejected_city.disposition, PiiDisposition::RejectedByRule { reason: RejectReason::RulePrecedence });
+    assert_eq!(rows.len(), 3);
+
+    for (kind, probability, disposition) in
+        [(first, 0.70f32, PiiDisposition::Kept { mention: Ix::new(0) }), (PiiKind::City, 0.20f32, UNDER)]
+    {
+        let row = rows.iter().find(|r| r.kind == kind && r.score.is_some()).unwrap();
+        assert_eq!(row.span, span);
+        assert_eq!(row.evidence, &[PiiEvidence::Shape]);
+        assert_eq!(row.disposition, disposition);
+        assert_eq!(audit.detectors.get(row.detector), Some((PROVENANCE.detector_id, PROVENANCE.detector_version)));
+        let score = row.score.unwrap();
+        assert_eq!(score.value.to_bits(), probability.to_bits());
+        assert_eq!(score.kind, PiiScoreKind::Probability);
+        assert_eq!(score.calibrated, PROVENANCE.calibrated);
+        assert_eq!(audit.detectors.get(score.model), Some((PROVENANCE.model_id, PROVENANCE.model_version)));
+    }
 }

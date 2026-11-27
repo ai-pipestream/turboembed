@@ -130,3 +130,23 @@ fn a_repeat_is_matched_to_the_admitted_twin_past_a_rejected_one() {
     );
     assert_eq!(candidates.check_against(&out), Ok(()));
 }
+
+#[test]
+fn rejecting_detector_spans_preserves_earlier_reasons_and_other_detectors() {
+    let mut hits = Hits::default();
+    hits.begin_detector("places", "1");
+    let places = hits.current_detector();
+    let span = Span::new(0, 5);
+    for _ in 0..2 {
+        hits.add(0, 5, PiiKind::City, PiiEvidence::Shape, |s| s.push_str("Paris"));
+    }
+    hits.reject_last(RejectReason::LabelRequired);
+    hits.begin_detector("other", "1");
+    hits.add(0, 5, PiiKind::City, PiiEvidence::Shape, |s| s.push_str("Paris"));
+
+    hits.reject_spans(places, &[span], RejectReason::RulePrecedence);
+    assert_eq!(
+        hits.hits.iter().map(|h| h.rejected).collect::<Vec<_>>(),
+        [Some(RejectReason::RulePrecedence), Some(RejectReason::LabelRequired), None]
+    );
+}

@@ -290,10 +290,10 @@ confidence tier, the audit report and every policy decision read them.
   `AllowedByRule { scope, rule }` (`AllowScope::Global` or `Kind`,
   `AllowRule::Term(i)` or `Pattern(i)` by registration index),
   `NestedIn { mention }`, `RejectedByRule { reason }` (`LabelRequired`,
-  `Threshold`, or `RulePrecedence` for a model's candidate that loses to
-  an overlapping rule mention) or `Repeats { mention }`. The layer has no value or
-  normalized column by construction, so a suppressed candidate never
-  carries text. `PiiAuditReport::with_candidates` counts suppressed
+  `Threshold`, or `RulePrecedence` when a candidate yields to a rule
+  or a bare Places city yields to an admitted person span) or
+  `Repeats { mention }`. The layer has no value or normalized column by
+  construction, so a suppressed candidate never carries text. `PiiAuditReport::with_candidates` counts suppressed
   candidates per kind from it, and `PiiCandidates::check_against` holds
   mention references to the `turbo:pii` layer of the same run.
 - **On the wire**: `PiiMention` carries `detector` (5), `evidence` (6)
@@ -1277,8 +1277,9 @@ trained PII token head (#1888) loaded and the Places pack as its rules
 (`PiiTagger::with_rules`, or `resolve_model_with_rules` with the head's
 candidates), a bare city name inside a `first-name` or `last-name` span
 the head admits (at or above the score threshold) is the person's
-(#2312, `analysis/pii/src/nemotron/person_city.rs`): the city candidate
-is taken out and the person candidate stands. A name before a state or
+(#2312, `analysis/pii/src/nemotron/person_city.rs`): the person candidate
+stands; the Places city retains an unscored audit row marked
+`rule-precedence` but is not a mention. A name before a state or
 after a city label (`Columbus, Ohio`, `City: Columbus`) stays a city
 whatever the head says, and so does a city another scanner finds on the
 same span. On the person-name memo the rules alone score `13` true, `5`
