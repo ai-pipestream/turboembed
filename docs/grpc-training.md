@@ -68,9 +68,11 @@ training runs at a time; another that passes its checks is refused with `UNAVAIL
 
 The distillation is the bundle tool's (docs/static.md, "Learned terms
 and a recipe made from the base"): the teacher's vocabulary entries and each learned term that is
-one WordPiece word new to the vocabulary are embedded by the teacher,
-reduced by PCA, weighted by Zipf's law, and measured on the quality
-texts. The bundle is then sealed: its reference written and every
+one WordPiece word new to the vocabulary are embedded by the teacher at
+`PRECISION_EXACT` on the device the server loaded that teacher on (a
+teacher whose device does not offer `PRECISION_EXACT` is refused before
+admission), reduced by PCA, weighted by Zipf's law, and measured on the
+quality texts. The bundle is then sealed: its reference written and every
 reference case and quality text checked on the library's CPU device.
 
 The stream is progress, then one `trained` message last. Each progress

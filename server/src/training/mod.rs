@@ -181,8 +181,9 @@ pub(crate) fn remove_static(
 }
 
 /// A served, loaded encoder a static model can be distilled from: an
-/// embedding bundle with an architecture, not itself a static model.
-pub(crate) fn teacher(m: &Served) -> Option<(Teacher, PathBuf)> {
+/// embedding bundle with an architecture, not itself a static model, with
+/// the runtime device index the server loaded it on.
+pub(crate) fn teacher(m: &Served) -> Option<(Teacher, PathBuf, u32)> {
     let loaded = m.loaded.get()?;
     if loaded.task != turbo::TURBO_TASK_EMBED {
         return None;
@@ -199,7 +200,7 @@ pub(crate) fn teacher(m: &Served) -> Option<(Teacher, PathBuf)> {
         hidden: arch.hidden,
         vocab_size: arch.vocab_size,
     };
-    Some((t, path))
+    Some((t, path, loaded.device))
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Status> + Send + 'static) -> Result<T, Status> {
@@ -217,7 +218,8 @@ impl TurboTrainingService for TrainingService {
     async fn list_teachers(&self, _: Request<ListTeachersRequest>) -> Reply<ListTeachersResponse> {
         let state = self.state.clone();
         let teachers =
-            blocking(move || Ok(state.listing().iter().filter_map(|m| teacher(m)).map(|(t, _)| t).collect())).await?;
+            blocking(move || Ok(state.listing().iter().filter_map(|m| teacher(m)).map(|(t, _, _)| t).collect()))
+                .await?;
         Ok(Response::new(ListTeachersResponse { teachers }))
     }
 

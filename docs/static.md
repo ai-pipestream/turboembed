@@ -285,8 +285,13 @@ numbers are tied to the exact model they were measured against.
 
 ## Distilling one
 
-`turbo-bundle distill <recipe.json> <base-bundle-dir> <bundle-dir>`
-distils a static bundle from a sealed bundle of the base model. The
+`turbo-bundle distill [--device <device>] <recipe.json> <base-bundle-dir> <bundle-dir>`
+distils a static bundle from a sealed bundle of the base model. `<device>`
+names where the base encoder runs: `cpu`, `select` (the accelerator
+`turbo_runtime_select` chooses for embedding), a runtime device index, or
+`<backend>[:<ordinal>]` (`cuda`, `cuda:0`, `levelzero`, `metal`). When
+`--device` is omitted, `cpu` is used; naming a device that is absent or
+unsupported refuses with no fallback to another device. The
 recipe is a manifest with `static_embedding` (without `distilled_from`
 and the numbers, which the tool fills), the quality texts among its
 `local` files, and a `distill` block:
@@ -308,7 +313,8 @@ pattern. Matching covers the entire token; non-ASCII digits do not match.
 The tokenizer block must be the base bundle's with the template
 `["$TEXT"]`. The steps:
 
-1. **stage**: the base bundle's encoder, run by this library on the CPU,
+1. **stage**: the base bundle's encoder, run by this library at
+   `PRECISION_EXACT` on the chosen device,
    embeds every vocabulary entry alone, between the base template's
    special tokens, mean-pooled with no normalization. Entries `skip`
    matches whole are left out, and so are the special tokens a text
@@ -336,10 +342,12 @@ server, needs no recipe file. `distill::from_base::recipe` makes the
 recipe the bundled static recipes have: the base's model source,
 licence and tokenizer, the shared quality texts
 (`bundle/recipes/static-quality.jsonl`), and the reference cases of
-`all-minilm-l6-v2-static.json`. `distill::stage_with` stages it as
-`stage` does, reporting each step (`distill::Progress`: entries kept,
-rows embedded, the PCA's explained variance, the quality numbers) to
-the caller instead of printing.
+`all-minilm-l6-v2-static.json`. `distill::stage_with` stages it on the
+CPU as `stage` does, reporting each step (`distill::Progress`: entries
+kept, rows embedded, the PCA's explained variance, the quality numbers)
+to the caller instead of printing; `distill::stage_on` runs the base
+encoder on a chosen `distill::Device`, recording `backend=<backend>` in
+the table's `produced_by.args`.
 
 When the base names a licence file, the recipe reads it through the
 bundle's verified reader, checking containment, size and SHA-256. The

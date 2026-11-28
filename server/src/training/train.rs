@@ -21,6 +21,7 @@ use turbo_bundle::distill::{self, Progress};
 use super::{STAGING, blocking, check_name, describe::describe, invalid, plain, runtime, serving, teacher};
 use crate::api::{
     Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_BUSY, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE,
+    TURBO_E_UNSUPPORTED_OPTION, field as cstr_field,
 };
 use crate::config::{Device, ModelConfig};
 use crate::proto::training::train_static_model_update::Update;
@@ -78,6 +79,7 @@ impl Drop for Slot {
 pub(super) struct Plan {
     pub(super) name: String,
     base: PathBuf,
+    device: distill::Device,
     options: Options,
     terms: Vec<String>,
     vocabulary: (String, String),
@@ -199,9 +201,26 @@ pub(super) fn plan(job: &Job, r: TrainStaticModelRequest, at: Option<u32>) -> Re
         return Err(invalid(1, format!("a model named {} is already served", r.name)));
     }
     let served = job.state.peek(&r.teacher).map_err(|f| plain(Failure { field: at(2), ..f }))?.0;
-    let (t, base) = teacher(&served).ok_or_else(|| {
+    let (t, base, teacher_index) = teacher(&served).ok_or_else(|| {
         invalid(2, format!("model {} is not a loaded encoder a static model is distilled from", r.teacher))
     })?;
+    let rt = job.state.runtime().map_err(plain)?;
+    let cap = rt
+        .capability(teacher_index, turbo::TURBO_TASK_EMBED, turbo::TURBO_PRECISION_EXACT)
+        .map_err(|f| plain(Failure { field: at(2), ..f }))?;
+    if cap.status == turbo::backend::TURBO_CAP_UNSUPPORTED {
+        return Err(failed(
+            TURBO_E_UNSUPPORTED_OPTION,
+            2,
+            format!(
+                "teacher {} runs on device {teacher_index}, which cannot compute PRECISION_EXACT: {}",
+                r.teacher,
+                cstr_field(&cap.reason)
+            ),
+        ));
+    }
+    let dev_info = rt.device_info(teacher_index).map_err(|f| plain(Failure { field: at(2), ..f }))?;
+    let device = distill::Device::Backend { name: cstr_field(&dev_info.backend), ordinal: Some(dev_info.ordinal) };
     let pca_dims = if r.pca_dims == 0 { DEFAULT_PCA_DIMS.min(t.hidden) } else { r.pca_dims };
     if pca_dims > t.hidden || pca_dims >= t.vocab_size {
         return Err(invalid(
@@ -251,7 +270,7 @@ pub(super) fn plan(job: &Job, r: TrainStaticModelRequest, at: Option<u32>) -> Re
         dtype: dtype.into(),
         max_length,
     };
-    Ok(Plan { name: r.name, base, options, terms, vocabulary, sessions })
+    Ok(Plan { name: r.name, base, device, options, terms, vocabulary, sessions })
 }
 
 /// Checks and admits the request, then streams the training. Every
@@ -312,7 +331,7 @@ pub(super) fn run(job: &Job, plan: &Plan, staging: &Path, tx: &dyn Watch) -> Res
     let mut recipe =
         from_base::recipe(&plan.base, &plan.options, &staging.join("work")).map_err(fail("the static recipe"))?;
     let bundle = staging.join("bundle");
-    let staged = distill::stage_with(&recipe, &plan.base, &bundle, &plan.terms, &mut |p| tx.step(step(p)))
+    let staged = distill::stage_on(&recipe, &plan.base, &bundle, &plan.terms, &plan.device, &mut |p| tx.step(step(p)))
         .map_err(fail("distillation"))?;
     gone()?;
     distill::seal(&mut recipe, &bundle).map_err(fail("sealing"))?;
