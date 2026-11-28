@@ -55,6 +55,14 @@ impl SpanHead {
         &self.kinds
     }
 
+    pub fn on_device_at(
+        &mut self,
+        device: turbo::device::Device,
+        precision: turbo::device::Precision,
+    ) -> Result<(), CoreError> {
+        self.head.on_device_at(device, precision)
+    }
+
     /// The spans the head keeps in each sequence of `seqs` over the view's
     /// tokens, `features[i]` sequence `i`'s word features under the head's
     /// pooling and taps, in order of sequence, first word, last; each
@@ -121,8 +129,9 @@ impl SpanTagger {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<SpanTagger, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Entities::ID, HeadKind::SpanClassifier)?;
-        let head = SpanHead::load(&bundle, spec)?;
+        let mut head = SpanHead::load(&bundle, spec)?;
         let read = Reader::open(dir, &bundle, spec, head.head.hidden(), o)?;
+        head.on_device_at(read.lstm_target.0, read.lstm_target.1)?;
         Ok(SpanTagger { head, read })
     }
 

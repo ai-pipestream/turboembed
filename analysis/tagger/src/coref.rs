@@ -57,7 +57,7 @@ impl CorefTagger {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<CorefTagger, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, COREF_LAYER, HeadKind::CorefRanker)?;
-        let head = CorefHead::load(&bundle, spec)?;
+        let mut head = CorefHead::load(&bundle, spec)?;
         let words = open_words(dir, o, spec.layer_mix.map_or(1, |m| m.layers as usize))?;
         if words.hidden() != head.head.hidden() {
             return Err(refuse(format!(
@@ -66,6 +66,8 @@ impl CorefTagger {
                 words.hidden()
             )));
         }
+        let (dev, prec) = words.lstm_target();
+        head.on_device_at(dev, prec)?;
         Ok(CorefTagger {
             execution: words.execution().clone(),
             width: words.width(),
@@ -108,6 +110,14 @@ impl CorefHead {
 
     pub fn head(&self) -> &CorefRanker {
         &self.head
+    }
+
+    pub fn on_device_at(
+        &mut self,
+        device: turbo::device::Device,
+        precision: turbo::device::Precision,
+    ) -> Result<(), CoreError> {
+        self.head.on_device_at(device, precision)
     }
 
     /// The chains of `entities` (every entity in one, singletons

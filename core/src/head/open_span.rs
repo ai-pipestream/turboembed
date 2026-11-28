@@ -214,6 +214,16 @@ impl OpenSpanMatcher {
         self.reader.reads_forms()
     }
 
+    /// Moves the word-BiLSTM adapter, when present, to `device` at `precision`.
+    pub fn on_device_at(&mut self, device: crate::device::Device, precision: crate::device::Precision) -> Result<()> {
+        self.reader.on_device_at(device, precision)
+    }
+
+    /// Where the word-BiLSTM adapter runs, or `None` without one.
+    pub fn lstm_device(&self) -> Option<crate::device::Device> {
+        self.reader.lstm_device()
+    }
+
     /// The number of candidate spans a sequence of `n` words has.
     pub fn span_count(&self, n: usize) -> usize {
         (1..=self.max_words.min(n)).fold(0usize, |t, width| t.saturating_add(n - width + 1))

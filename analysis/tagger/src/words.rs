@@ -255,6 +255,11 @@ impl WordEncoder {
         &self.encoder.info().execution
     }
 
+    /// The [`turbo::device`] placement and precision matching this encoder session.
+    pub fn lstm_target(&self) -> (turbo::device::Device, turbo::device::Precision) {
+        self.encoder.device_lstm_target()
+    }
+
     /// Each word's pieces, read as the module comment says.
     pub fn pieces(&mut self, word: &str) -> Result<Vec<i32>> {
         let (mut ids, mut spans) = (Vec::new(), Vec::new());

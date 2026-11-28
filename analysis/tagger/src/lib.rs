@@ -76,6 +76,10 @@ impl PosTagger {
     pub fn tagset(&self) -> &Arc<TagSet> {
         &self.tagset
     }
+
+    pub fn tagger(&self) -> &turbo::head::TokenTagger {
+        self.run.tagger()
+    }
 }
 
 impl Annotator for PosTagger {
@@ -120,6 +124,10 @@ impl EntityTagger {
 
     pub fn kinds(&self) -> &Arc<TagSet> {
         &self.kinds
+    }
+
+    pub fn tagger(&self) -> &turbo::head::TokenTagger {
+        self.run.tagger()
     }
 }
 

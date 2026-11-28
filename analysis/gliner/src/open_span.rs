@@ -40,7 +40,11 @@ struct Runner {
 }
 
 impl Runner {
-    fn open(dir: &Path, bundle: &Bundle, o: &EncoderOptions) -> Result<(Runner, Execution), String> {
+    fn open(
+        dir: &Path,
+        bundle: &Bundle,
+        o: &EncoderOptions,
+    ) -> Result<(Runner, Execution, (turbo::device::Device, turbo::device::Precision)), String> {
         let tokenizer = Tokenizer::load(bundle).map_err(|e| e.message)?;
         let embed = bundle.manifest.embed();
         let mut eo = o.clone();
@@ -55,6 +59,7 @@ impl Runner {
             return Err(format!("max_seq {} leaves no room beside {overhead} special tokens", info.max_seq));
         }
         let exec = info.execution.clone();
+        let lstm_target = encoder.device_lstm_target();
         Ok((
             Runner {
                 width: info.max_seq as usize - overhead,
@@ -67,6 +72,7 @@ impl Runner {
                 sep,
             },
             exec,
+            lstm_target,
         ))
     }
 
@@ -195,11 +201,12 @@ impl OpenSpanModel {
     pub fn open(dir: &Path, name: Option<&str>, options: &EncoderOptions) -> Result<Self, String> {
         let bundle = Bundle::open(dir).map_err(|e| e.message)?;
         let spec = find_open_span_head(&bundle, name)?;
-        let head = OpenSpanMatcher::load(&bundle, &spec.name).map_err(|e| e.message)?;
-        let (runner, execution) = Runner::open(dir, &bundle, options)?;
+        let mut head = OpenSpanMatcher::load(&bundle, &spec.name).map_err(|e| e.message)?;
+        let (runner, execution, (dev, prec)) = Runner::open(dir, &bundle, options)?;
         if runner.hidden != head.hidden() {
             return Err(format!("open-span head expects hidden {}, encoder gives {}", head.hidden(), runner.hidden));
         }
+        head.on_device_at(dev, prec).map_err(|e| e.message)?;
         let identity = ModelRef {
             id: bundle.manifest.model.id.clone(),
             revision: bundle.manifest.model.revision.clone(),

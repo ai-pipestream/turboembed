@@ -98,7 +98,7 @@ impl HeadRunner {
     pub fn open(dir: &Path, name: Option<&str>, layer: &str, o: &EncoderOptions) -> Result<HeadRunner, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, layer, HeadKind::TokenTagger)?;
-        let tagger = TokenTagger::load(&bundle, &spec.name)?;
+        let mut tagger = TokenTagger::load(&bundle, &spec.name)?;
         let mut words = open_words(dir, o, tagger.taps())?;
         words.first_tap_alone(first_tap_alone(spec, tagger.taps()));
         if words.hidden() != tagger.hidden() {
@@ -108,6 +108,8 @@ impl HeadRunner {
                 words.hidden()
             )));
         }
+        let (dev, prec) = words.lstm_target();
+        tagger.on_device_at(dev, prec)?;
         Ok(HeadRunner {
             execution: words.execution().clone(),
             width: words.width(),
@@ -349,22 +351,22 @@ fn decode_scaled(
 ) -> Result<Vec<(Decoded, Vec<f32>)>, CoreError> {
     let (mut scores, mut work) = (Vec::new(), turbo::head::tagger::Work::default());
     let labels = tagger.labels().len();
-    let stride = tagger.taps() * tagger.hidden();
     let inv_t = 1.0 / temperature;
-    let mut out = Vec::with_capacity(features.len());
+    let lens = tagger.scores_sequences_language(features, forms, None, &mut scores, &mut work)?;
+    let mut out = Vec::with_capacity(lens.len());
     let mut sums = vec![0.0f64; groups.count];
-    for (f, forms) in features.iter().zip(forms) {
-        let n = f.len() / stride;
-        let word_ids: Vec<u32> = (0..n as u32).collect();
-        tagger.scores_language(f, &word_ids, Some(forms), None, &mut scores, &mut work)?;
+    let mut at = 0usize;
+    for n in lens {
+        let seq_scores = &scores[at * labels..][..n * labels];
+        at += n;
         let mut tags = Vec::new();
-        tagger.decode(&scores, n, &mut tags)?;
+        tagger.decode(seq_scores, n, &mut tags)?;
         let mut shares = Vec::with_capacity(n * groups.count);
         let prob = tags
             .iter()
             .enumerate()
             .map(|(w, &t)| {
-                let row = &scores[w * labels..][..labels];
+                let row = &seq_scores[w * labels..][..labels];
                 let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64 * inv_t;
                 sums.fill(0.0);
                 let mut z = 0.0;

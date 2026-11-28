@@ -24,6 +24,8 @@ pub(crate) struct Table {
     width: usize,
     /// Backend, device and precision the session runs at.
     pub(crate) execution: turbo_analysis::Execution,
+    /// Placement and precision for the word-level BiLSTM beside this session.
+    pub(crate) lstm_target: (turbo::device::Device, turbo::device::Precision),
 }
 
 struct Run {
@@ -69,9 +71,10 @@ impl Table {
             return Err(format!("gliner encoder bundle: vectors of {}, hidden {}", info.dim, config.hidden));
         }
         let rows = Rows::new(info.max_seq, 0);
+        let lstm_target = encoder.device_lstm_target();
         let run = Run { encoder, rows, ranges: Vec::new() };
         let execution = info.execution;
-        Ok((Table { run: Mutex::new(run), width: config.hidden, execution }, config))
+        Ok((Table { run: Mutex::new(run), width: config.hidden, execution, lstm_target }, config))
     }
 
     /// The states of `p`'s prompts then its words into `out`, [prompts +

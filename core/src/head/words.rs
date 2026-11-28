@@ -6,8 +6,10 @@
 //! and the biaffine parser (parser.rs) share it, so the same spec gives
 //! the same word vectors to both.
 
+use super::adapter::Adapter;
 use super::hash_embed::{self, Tables};
-use crate::cpu::lstm::{Lstm, Weights, Work as LstmWork};
+use crate::device::lstm::Work as LstmWork;
+use crate::device::{Device, Precision};
 use crate::manifest::{HeadSpec, WordPooling};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
 
@@ -93,14 +95,6 @@ impl Take<'_> {
     }
 }
 
-struct AdapterLayer(Lstm);
-
-impl std::fmt::Debug for AdapterLayer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Lstm").field("input", &self.0.input()).field("hidden", &self.0.hidden()).finish()
-    }
-}
-
 #[derive(Debug)]
 struct Language {
     names: Vec<String>,
@@ -118,7 +112,7 @@ pub(crate) struct WordReader {
     mix: Option<Vec<f32>>,
     language: Option<Language>,
     hash: Option<Tables>,
-    adapter: Vec<AdapterLayer>,
+    adapter: Adapter,
     width: usize,
 }
 
@@ -170,24 +164,22 @@ impl WordReader {
             }
             None => None,
         };
-        let mut adapter = Vec::new();
         let language_width = language.as_ref().map_or(0, |language| language.dim);
-        let mut width = hidden + language_width + hash.as_ref().map_or(0, Tables::width);
-        if let Some(a) = &spec.adapter {
-            let h = a.bilstm.hidden as usize;
-            for k in 0..a.bilstm.layers {
-                let part = |dir: &str, x: &str| t.take(&format!("lstm.{k}.{dir}.{x}"));
-                let (fw, fu, fb) = (part("fwd", "w")?, part("fwd", "u")?, part("fwd", "b")?);
-                let (bw, bu, bb) = (part("bwd", "w")?, part("bwd", "u")?, part("bwd", "b")?);
-                let dirs = [
-                    Weights { w: &fw, u: &fu, b: &fb, reverse: false },
-                    Weights { w: &bw, u: &bu, b: &bb, reverse: true },
-                ];
-                adapter.push(AdapterLayer(Lstm::new(width, h, &dirs)?));
-                width = 2 * h;
-            }
-        }
+        let in_width = hidden + language_width + hash.as_ref().map_or(0, Tables::width);
+        let (adapter, width) = Adapter::new(spec, in_width, t)?;
         Ok(WordReader { pooling: spec.word_pooling, hidden, taps, mix, language, hash, adapter, width })
+    }
+
+    pub(crate) fn on_device_at(&mut self, device: Device, precision: Precision) -> Result<()> {
+        self.adapter.on_device_at(device, precision)
+    }
+
+    pub(crate) fn lstm_device(&self) -> Option<Device> {
+        self.adapter.device()
+    }
+
+    pub(crate) fn lstm_precision(&self) -> Option<Precision> {
+        self.adapter.precision()
     }
 
     /// The width of the word vectors `read` gives.
@@ -230,6 +222,87 @@ impl WordReader {
         w: &mut Work,
     ) -> Result<usize> {
         let language = self.language_index(language)?;
+        let n = self.prepare_sequence(states, words, forms, language, w)?;
+        if n > 0 {
+            self.adapter.run(&[n], n, &mut w.pooled, &mut w.adapted, &mut w.lstm)?;
+            w.pooled.truncate(n * self.width);
+        }
+        Ok(n)
+    }
+
+    /// Reads `features.iter().zip(forms)` as one batched adapter pass, writing
+    /// all sequences' `[n_s, width]` vectors in input order into `out` and
+    /// returning each sequence's word count.
+    pub(crate) fn read_sequences(
+        &self,
+        features: &[Vec<f32>],
+        forms: &[Vec<&str>],
+        language: Option<&str>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<Vec<usize>> {
+        let count = features.len().min(forms.len());
+        let stride = self.taps() * self.hidden;
+        if count <= 1 || self.adapter.is_empty() {
+            out.clear();
+            let mut lens = Vec::with_capacity(count);
+            for (f, fs) in features[..count].iter().zip(&forms[..count]) {
+                let words: Vec<u32> = (0..(f.len() / stride) as u32).collect();
+                let n = self.read_language(f, &words, Some(fs), language, w)?;
+                out.extend_from_slice(&w.pooled[..n * self.width]);
+                lens.push(n);
+            }
+            return Ok(lens);
+        }
+        let lang = self.language_index(language)?;
+        let in_width =
+            self.hidden + self.language.as_ref().map_or(0, |l| l.dim) + self.hash.as_ref().map_or(0, Tables::width);
+        let mut prepared: Vec<Vec<f32>> = Vec::with_capacity(count);
+        let mut lens = Vec::with_capacity(count);
+        for (f, fs) in features[..count].iter().zip(&forms[..count]) {
+            let words: Vec<u32> = (0..(f.len() / stride) as u32).collect();
+            let n = self.prepare_sequence(f, &words, Some(fs), lang, w)?;
+            prepared.push(w.pooled[..n * in_width].to_vec());
+            lens.push(n);
+        }
+        let mut order: Vec<usize> = (0..count).filter(|&i| lens[i] > 0).collect();
+        order.sort_by_key(|&i| std::cmp::Reverse(lens[i]));
+        let sorted_lens: Vec<usize> = order.iter().map(|&i| lens[i]).collect();
+        let rows: usize = sorted_lens.iter().sum();
+        out.clear();
+        if rows == 0 {
+            return Ok(lens);
+        }
+        w.pooled.clear();
+        w.pooled.reserve(rows * in_width);
+        for &i in &order {
+            w.pooled.extend_from_slice(&prepared[i]);
+        }
+        self.adapter.run(&sorted_lens, rows, &mut w.pooled, &mut w.adapted, &mut w.lstm)?;
+        let mut offsets = vec![0usize; count];
+        let mut acc = 0usize;
+        for (i, &len) in lens.iter().enumerate() {
+            offsets[i] = acc;
+            acc += len;
+        }
+        out.resize(rows * self.width, 0.0);
+        let mut at = 0usize;
+        for (&i, &len) in order.iter().zip(&sorted_lens) {
+            out[offsets[i] * self.width..][..len * self.width]
+                .copy_from_slice(&w.pooled[at * self.width..][..len * self.width]);
+            at += len;
+        }
+        Ok(lens)
+    }
+
+    fn prepare_sequence(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        forms: Option<&[&str]>,
+        language: Option<usize>,
+        w: &mut Work,
+    ) -> Result<usize> {
         let rows = words.len();
         let taps = self.taps();
         let one = rows.checked_mul(self.hidden);
@@ -288,14 +361,6 @@ impl WordReader {
             }
             std::mem::swap(&mut w.pooled, &mut w.adapted);
         }
-        for layer in &self.adapter {
-            let width = layer.0.width();
-            w.adapted.clear();
-            w.adapted.resize(n * width, 0.0);
-            layer.0.run(&w.pooled, &[n], &mut w.adapted, &mut w.lstm)?;
-            std::mem::swap(&mut w.pooled, &mut w.adapted);
-        }
-        w.pooled.truncate(n * self.width);
         Ok(n)
     }
 
@@ -320,19 +385,7 @@ impl WordReader {
     }
 
     fn pool(&self, states: &[f32], words: &[u32], n: usize, w: &mut Work) {
-        let h = self.hidden;
-        let rows = words.len();
-        if let Some(scales) = &self.mix {
-            w.pooled.clear();
-            w.pooled.resize(n * h, 0.0);
-            let block = rows * h;
-            for (t, &scale) in scales.iter().enumerate() {
-                pool_tap(self.pooling, h, &states[t * block..(t + 1) * block], words, n, &mut w.tap, &mut w.count);
-                w.pooled.iter_mut().zip(&w.tap).for_each(|(dst, &v)| *dst += scale * v);
-            }
-        } else {
-            pool_tap(self.pooling, h, states, words, n, &mut w.pooled, &mut w.count);
-        }
+        self.pool_with_tap(states, words, n, &mut w.pooled, &mut w.tap, &mut w.count);
     }
 
     pub(crate) fn pool_into(
@@ -343,16 +396,27 @@ impl WordReader {
         pooled: &mut Vec<f32>,
         count: &mut Vec<u32>,
     ) {
+        let mut tap = Vec::new();
+        self.pool_with_tap(states, words, n, pooled, &mut tap, count);
+    }
+
+    fn pool_with_tap(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        n: usize,
+        pooled: &mut Vec<f32>,
+        tap: &mut Vec<f32>,
+        count: &mut Vec<u32>,
+    ) {
         let h = self.hidden;
         if let Some(scales) = &self.mix {
-            let rows = words.len();
+            let block = words.len() * h;
             pooled.clear();
             pooled.resize(n * h, 0.0);
-            let block = rows * h;
-            let mut tap = Vec::with_capacity(n * h);
             for (t, &scale) in scales.iter().enumerate() {
-                pool_tap(self.pooling, h, &states[t * block..(t + 1) * block], words, n, &mut tap, count);
-                pooled.iter_mut().zip(&tap).for_each(|(dst, &v)| *dst += scale * v);
+                pool_tap(self.pooling, h, &states[t * block..(t + 1) * block], words, n, tap, count);
+                pooled.iter_mut().zip(&*tap).for_each(|(dst, &v)| *dst += scale * v);
             }
         } else {
             pool_tap(self.pooling, h, states, words, n, pooled, count);
