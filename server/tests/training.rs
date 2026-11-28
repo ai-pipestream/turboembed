@@ -283,11 +283,7 @@ async fn a_cancelled_training_leaves_nothing_and_frees_its_slot() {
     fs::remove_dir_all(d).unwrap();
 }
 
-#[tokio::test]
-async fn a_failed_distillation_is_a_runtime_error_with_no_files() {
-    let d = scratch("fail");
-    // A teacher whose tokenizer file goes after it is loaded: it still
-    // lists, and the distillation fails reading it, after admission.
+fn copy_teacher(d: &Path) -> std::path::PathBuf {
     let teacher = d.join("teacher");
     fs::create_dir_all(teacher.join("weights")).unwrap();
     fs::create_dir_all(teacher.join("reference")).unwrap();
@@ -295,6 +291,15 @@ async fn a_failed_distillation_is_a_runtime_error_with_no_files() {
     for f in ["manifest.json", "tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {
         fs::copy(tiny.join(f), teacher.join(f)).unwrap();
     }
+    teacher
+}
+
+#[tokio::test]
+async fn a_failed_distillation_is_a_runtime_error_with_no_files() {
+    let d = scratch("fail");
+    // A teacher whose tokenizer file goes after it is loaded: it still
+    // lists, and the distillation fails reading it, after admission.
+    let teacher = copy_teacher(&d);
     let model = ModelConfig { bundle: teacher.to_str().unwrap().into(), name: Some(TEACHER.into()), ..bundle(TEACHER) };
     let serve = Serve { admin: true, training: Some(d.join("training")), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model], MAX, serve).await.unwrap();
@@ -309,4 +314,86 @@ async fn a_failed_distillation_is_a_runtime_error_with_no_files() {
     assert_eq!(k.model_infer(common::texts_req("broken", &[b"hello"])).await.unwrap_err().code(), Code::NotFound);
     s.stop().await;
     fs::remove_dir_all(d).unwrap();
+}
+
+#[tokio::test]
+async fn distillation_reuses_the_loaded_teacher_weights() {
+    let d = scratch("reuse-teacher");
+    let teacher = copy_teacher(&d);
+    let config =
+        ModelConfig { bundle: teacher.to_str().unwrap().into(), name: Some(TEACHER.into()), ..bundle(TEACHER) };
+    let serve = Serve { admin: true, training: Some(d.join("training")), ..Serve::default() };
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![config], MAX, serve).await.unwrap();
+    s.load().await.unwrap();
+    let mut c = TurboTrainingServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let before = train(&mut c, request("with-file")).await.unwrap();
+    // Renaming keeps any already mapped file valid. Never touch the fixture itself.
+    fs::rename(teacher.join("weights/model.safetensors"), teacher.join("loaded.safetensors")).unwrap();
+    let after = train(&mut c, request("without-file")).await.unwrap();
+    let model = |updates: Vec<Update>| match updates.into_iter().last().unwrap() {
+        Update::Trained(t) => t.model.unwrap(),
+        _ => panic!("training did not finish"),
+    };
+    let (before, after) = (model(before), model(after));
+    assert!(before.verified && after.verified && before.served && after.served);
+    assert_eq!(before.quality, after.quality);
+    let table = "weights/static.safetensors";
+    assert_eq!(
+        fs::read(d.join("training/with-file").join(table)).unwrap(),
+        fs::read(d.join("training/without-file").join(table)).unwrap(),
+    );
+    s.stop().await;
+}
+
+/// Opt-in hardware proof. An explicitly named backend must be present,
+/// and the production training path rejects each host-only encode.
+#[tokio::test]
+#[ignore = "requires an explicitly selected accelerator: TURBO_TEST_DEVICE"]
+async fn accelerator_teacher_distils_with_cpu_parity() {
+    let want = std::env::var("TURBO_TEST_DEVICE").expect("name an accelerator backend");
+    let rt = turbo_kserve::api::Runtime::create().unwrap();
+    let text = |b: &[std::ffi::c_char]| {
+        let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+        String::from_utf8(bytes).unwrap()
+    };
+    let (index, info) = (0..)
+        .map_while(|index| rt.device_info(index).ok().map(|info| (index, info)))
+        .find(|(_, info)| info.kind != turbo::TURBO_DEVICE_CPU && text(&info.backend) == want)
+        .unwrap_or_else(|| panic!("required accelerator backend {want} is unavailable"));
+    println!("device {index}: {} ({want}, kind {})", text(&info.name), info.kind);
+
+    let d = scratch("hardware-teacher");
+    let serve = Serve { admin: true, training: Some(d.join("training")), ..Serve::default() };
+    let gpu_teacher =
+        ModelConfig { name: Some("accelerator-teacher".into()), device: Device::Index(index), ..bundle(TEACHER) };
+    let s =
+        Server::start("127.0.0.1:0".parse().unwrap(), vec![bundle(TEACHER), gpu_teacher], MAX, serve).await.unwrap();
+    s.load().await.unwrap();
+    let mut client = TurboTrainingServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let mut kserve = common::kserve(&s).await;
+    let texts = [b"turboembed learns".as_slice(), b"a tiny model", b"a different sentence"];
+    let mut pairs = Vec::new();
+    for (name, teacher) in [("from-cpu", TEACHER), ("from-accelerator", "accelerator-teacher")] {
+        let mut req = request(name);
+        req.teacher = teacher.into();
+        req.terms = vec!["turboembed".into()];
+        let updates = train(&mut client, req).await.unwrap();
+        let Some(Update::Trained(t)) = updates.last() else { panic!("no trained result for {teacher}") };
+        let m = t.model.as_ref().unwrap();
+        assert!(m.verified && m.served);
+        assert_eq!(t.added_terms, ["turboembed"]);
+        let result = kserve.model_infer(common::texts_req(name, &texts)).await.unwrap().into_inner();
+        assert_eq!(result.outputs[0].shape, [3, 16]);
+        let bytes = &result.raw_output_contents[0];
+        let vectors: Vec<_> = bytes.as_chunks::<4>().0.iter().map(|x| f32::from_le_bytes(*x)).collect();
+        assert_eq!(vectors.len(), 48);
+        assert!(vectors.iter().all(|x| x.is_finite()));
+        let (rows, []) = vectors.as_chunks::<16>() else { unreachable!("checked vector length") };
+        // PCA axes can flip. Compare retrieval geometry, not raw coordinates.
+        pairs.push([(0, 1), (0, 2), (1, 2)].map(|(i, j)| rows[i].iter().zip(rows[j].iter()).map(|(a, b)| a * b).sum::<f32>()));
+    }
+    for (cpu, device) in pairs[0].into_iter().zip(pairs[1]) {
+        assert!((cpu - device).abs() <= 0.01, "static similarity: CPU {cpu}, {want} {device}");
+    }
+    s.stop().await;
 }

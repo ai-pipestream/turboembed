@@ -170,6 +170,11 @@ unsafe impl Send for Model {}
 unsafe impl Sync for Model {}
 
 impl Model {
+    pub(crate) fn handle(&self) -> &turbo_model {
+        // This Model owns the non-null handle for the lifetime of the borrow.
+        unsafe { &*self.0 }
+    }
+
     pub fn info(&self) -> Result<turbo_model_info> {
         let mut info: turbo_model_info = sized();
         check(|e| unsafe { turbo_model_get_info(self.0, &mut info, e) })?;

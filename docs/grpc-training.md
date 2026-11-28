@@ -68,10 +68,15 @@ training runs at a time; another that passes its checks is refused with `UNAVAIL
 
 The distillation is the bundle tool's (docs/static.md, "Learned terms
 and a recipe made from the base"): the teacher's vocabulary entries and each learned term that is
-one WordPiece word new to the vocabulary are embedded by the teacher,
-reduced by PCA, weighted by Zipf's law, and measured on the quality
-texts. The bundle is then sealed: its reference written and every
-reference case and quality text checked on the library's CPU device.
+one WordPiece word new to the vocabulary are embedded by the loaded
+teacher on its serving device, then reduced by PCA and weighted by
+Zipf's law on the host. The quality texts also use that teacher. An
+accelerator teacher must report device execution for every encoder
+batch; a refused or host encoder run fails training without a CPU
+retry. Training opens exact-precision sessions on the loaded model,
+separate from its serving session pool. The bundle is then sealed: its
+reference is written, and every reference case and quality text is
+checked on the library's CPU device.
 
 The stream is progress, then one `trained` message last. Each progress
 message has a `stage`:

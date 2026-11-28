@@ -37,7 +37,7 @@ pub(super) fn quality_texts(path: &Path) -> Result<Vec<QualityText>> {
 
 /// The base model's own vectors for the texts, as its bundle says.
 pub(super) fn base_vectors(
-    model: &api::Model,
+    model: &api::ModelRef<'_>,
     info: &turbo::turbo_model_info,
     texts: &[QualityText],
 ) -> Result<Vec<Vec<f64>>> {

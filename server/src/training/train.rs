@@ -28,7 +28,7 @@ use crate::proto::training::{
     RefusedTerm, StaticDtype, StaticModelQuality, TrainStage, TrainStaticModelProgress, TrainStaticModelRequest,
     TrainStaticModelUpdate, TrainedStaticModel,
 };
-use crate::state::{MAX_SESSIONS_PER_MODEL, State};
+use crate::state::{Loaded, MAX_SESSIONS_PER_MODEL, State};
 use crate::vocabulary::{Store, Stored};
 
 pub(crate) type UpdateStream = Pin<Box<dyn Stream<Item = Result<TrainStaticModelUpdate, Status>> + Send>>;
@@ -78,6 +78,8 @@ impl Drop for Slot {
 pub(super) struct Plan {
     pub(super) name: String,
     base: PathBuf,
+    loaded_teacher: Arc<Loaded>,
+    require_accelerator: Option<u32>,
     options: Options,
     terms: Vec<String>,
     vocabulary: (String, String),
@@ -202,6 +204,10 @@ pub(super) fn plan(job: &Job, r: TrainStaticModelRequest, at: Option<u32>) -> Re
     let (t, base) = teacher(&served).ok_or_else(|| {
         invalid(2, format!("model {} is not a loaded encoder a static model is distilled from", r.teacher))
     })?;
+    let loaded_teacher = served.loaded.get().cloned().ok_or_else(|| invalid(2, "teacher is not loaded".into()))?;
+    let device = loaded_teacher.device;
+    let info = job.state.runtime().and_then(|rt| rt.device_info(device)).map_err(plain)?;
+    let require_accelerator = (info.kind != turbo::TURBO_DEVICE_CPU).then_some(device);
     let pca_dims = if r.pca_dims == 0 { DEFAULT_PCA_DIMS.min(t.hidden) } else { r.pca_dims };
     if pca_dims > t.hidden || pca_dims >= t.vocab_size {
         return Err(invalid(
@@ -251,7 +257,7 @@ pub(super) fn plan(job: &Job, r: TrainStaticModelRequest, at: Option<u32>) -> Re
         dtype: dtype.into(),
         max_length,
     };
-    Ok(Plan { name: r.name, base, options, terms, vocabulary, sessions })
+    Ok(Plan { name: r.name, base, loaded_teacher, require_accelerator, options, terms, vocabulary, sessions })
 }
 
 /// Checks and admits the request, then streams the training. Every
@@ -312,8 +318,16 @@ pub(super) fn run(job: &Job, plan: &Plan, staging: &Path, tx: &dyn Watch) -> Res
     let mut recipe =
         from_base::recipe(&plan.base, &plan.options, &staging.join("work")).map_err(fail("the static recipe"))?;
     let bundle = staging.join("bundle");
-    let staged = distill::stage_with(&recipe, &plan.base, &bundle, &plan.terms, &mut |p| tx.step(step(p)))
-        .map_err(fail("distillation"))?;
+    let staged = distill::stage_with_teacher(
+        &recipe,
+        &plan.base,
+        &bundle,
+        &plan.terms,
+        &mut |p| tx.step(step(p)),
+        plan.loaded_teacher.model.handle(),
+        plan.require_accelerator,
+    )
+    .map_err(fail("distillation"))?;
     gone()?;
     distill::seal(&mut recipe, &bundle).map_err(fail("sealing"))?;
     tx.step(progress(TrainStage::Sealed));
