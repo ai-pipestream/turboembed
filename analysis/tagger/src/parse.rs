@@ -37,7 +37,7 @@ impl DependencyParser {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<DependencyParser, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Dependencies::<Tokens>::ID, HeadKind::BiaffineParser)?;
-        let parser = BiaffineParser::load(&bundle, &spec.name)?;
+        let mut parser = BiaffineParser::load(&bundle, &spec.name)?;
         let words = open_words(dir, o, parser.taps())?;
         if words.hidden() != parser.hidden() {
             return Err(refuse(format!(
@@ -46,6 +46,8 @@ impl DependencyParser {
                 words.hidden()
             )));
         }
+        let (dev, prec) = words.lstm_target();
+        parser.on_device_at(dev, prec)?;
         let labels: Vec<&str> = parser.labels().iter().map(String::as_str).collect();
         Ok(DependencyParser {
             relations: TagSet::new(&spec.name, &labels),

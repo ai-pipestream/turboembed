@@ -120,6 +120,26 @@ impl TokenTagger {
         self.reader.taps()
     }
 
+    /// Moves the word-BiLSTM adapter, when present, to `device` at `Precision::Model`.
+    pub fn on_device(&mut self, device: crate::device::Device) -> Result<()> {
+        self.on_device_at(device, crate::device::Precision::Model)
+    }
+
+    /// Moves the word-BiLSTM adapter, when present, to `device` at `precision`.
+    pub fn on_device_at(&mut self, device: crate::device::Device, precision: crate::device::Precision) -> Result<()> {
+        self.reader.on_device_at(device, precision)
+    }
+
+    /// Where the word-BiLSTM adapter runs, or `None` without one.
+    pub fn lstm_device(&self) -> Option<crate::device::Device> {
+        self.reader.lstm_device()
+    }
+
+    /// The precision of the word-BiLSTM adapter, or `None` without one.
+    pub fn lstm_precision(&self) -> Option<crate::device::Precision> {
+        self.reader.lstm_precision()
+    }
+
     /// The label scores [words, labels] of one sequence into `out`, from
     /// its subword states `states` [rows, hidden] and `words` [rows], each
     /// row's word index or [`NO_WORD`]. Word indices must start at 0 and
@@ -171,6 +191,28 @@ impl TokenTagger {
             self.out.apply_rows(&w.pooled, n, out);
         }
         Ok(n)
+    }
+
+    /// Scores all sequences of `features.iter().zip(forms)` in one batched
+    /// adapter and output pass, writing `[total_words, labels]` into `out` and
+    /// returning each sequence's word count.
+    pub fn scores_sequences_language(
+        &self,
+        features: &[Vec<f32>],
+        forms: &[Vec<&str>],
+        language: Option<&str>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<Vec<usize>> {
+        let mut word_vecs = Vec::new();
+        let lens = self.reader.read_sequences(features, forms, language, &mut word_vecs, w)?;
+        let rows: usize = lens.iter().sum();
+        out.clear();
+        out.resize(rows * self.out.out_dim, 0.0);
+        if rows > 0 {
+            self.out.apply_rows(&word_vecs, rows, out);
+        }
+        Ok(lens)
     }
 
     /// The label index of each of `words` words from their `scores`

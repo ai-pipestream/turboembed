@@ -103,8 +103,12 @@ fn models() -> (Model, Model) {
     }
     let cpu = Manifest::load(&package).unwrap();
     let device = Manifest::open_on(&package, &bundle, &o).unwrap();
+    assert_eq!(cpu.lstm_device(), turbo::device::Device::Cpu);
     if let Some(b) = required() {
         assert_eq!(device.execution().unwrap().backend, b, "the session runs on the backend required");
+    }
+    if device.execution().unwrap().backend == "cuda" {
+        assert_eq!(device.lstm_device(), turbo::device::Device::Cuda(0));
     }
     (cpu, device)
 }

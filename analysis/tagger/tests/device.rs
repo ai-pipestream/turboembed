@@ -21,35 +21,41 @@ use turbo_analysis::{Annotator, Document, Key, Layer, View};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_analysis_layers::{Entities, PosTags};
 use turbo_tagger::{
-    DependencyParser, EntityTagger, HeadRunner, Lemmatizer, PosTagger, SentenceTagger, SpanTagger, WordEncoder,
-    WordTagger,
+    DependencyParser, EntityTagger, HeadRunner, Lemmatizer, MultiTask, PosTagger, SentenceTagger, SpanTagger,
+    WordEncoder, WordTagger,
 };
 
 const BOUND: f32 = 1e-4;
+const FASTEST_BOUND: f32 = 1e-2;
 
 fn required() -> Option<&'static str> {
-    let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [
-        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
-        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
-        ("TURBO_TEST_REQUIRE_METAL", "metal"),
-    ]
-    .into_iter()
-    .find(|(v, _)| set(v))
-    .map(|(_, b)| b)
+    turbo_pins::device_required(&["cuda", "levelzero", "metal"])
 }
 
 fn options() -> EncoderOptions {
-    let device = match std::env::var("TURBO_TEST_DEVICE").as_deref() {
-        Err(_) | Ok("cpu") => Device::Cpu,
-        Ok(d) => Device::Backend(d.to_owned()),
+    let named = std::env::var("TURBO_TEST_DEVICE").ok();
+    let req = required();
+    turbo_pins::check_test_device(named.as_deref(), req).unwrap_or_else(|e| panic!("{e}"));
+    let device = match named.as_deref() {
+        None | Some("cpu") => Device::Cpu,
+        Some(d) => Device::Backend(d.to_owned()),
     };
     let precision = match std::env::var("TURBO_TEST_PRECISION").as_deref() {
         Err(_) | Ok("model") => Precision::Model,
         Ok("exact") => Precision::Exact,
-        Ok(p) => panic!("TURBO_TEST_PRECISION={p}: model or exact"),
+        Ok("fastest") => Precision::Fastest,
+        Ok(p) => panic!("TURBO_TEST_PRECISION={p}: model, exact or fastest"),
     };
     EncoderOptions { device, precision, ..EncoderOptions::default() }
+}
+
+fn expected_lstm_device(backend: &str) -> turbo::device::Device {
+    match backend {
+        "cuda" => turbo::device::Device::Cuda(0),
+        "levelzero" => turbo::device::Device::LevelZero(0),
+        "metal" => turbo::device::Device::Metal(0),
+        _ => turbo::device::Device::Cpu,
+    }
 }
 
 fn sequences() -> Vec<Vec<&'static str>> {
@@ -107,12 +113,15 @@ fn the_device_reads_words_and_tags_as_the_cpu() {
     let pd = PosTagger::open(&dir, None, &o).unwrap();
     let pc = PosTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
     assert_eq!(pd.execution().unwrap().backend, execution.backend);
+    assert_eq!(pd.tagger().lstm_device(), None, "pos head has no BiLSTM adapter");
     assert_eq!(
         pd.annotate((view, &toks, None, None)).unwrap().0.tags,
         pc.annotate((view, &toks, None, None)).unwrap().0.tags
     );
     let ed = EntityTagger::open(&dir, None, &o).unwrap();
     let ec = EntityTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
+    assert_eq!(ed.tagger().lstm_device(), Some(expected_lstm_device(&execution.backend)));
+    assert_eq!(ec.tagger().lstm_device(), Some(turbo::device::Device::Cpu));
     let (a,) = ed.annotate((view, &toks, None, None)).unwrap();
     let (b,) = ec.annotate((view, &toks, None, None)).unwrap();
     assert_eq!((a.tokens, a.kind), (b.tokens, b.kind));
@@ -319,6 +328,7 @@ fn the_device_segments_as_the_cpu() {
         spans_of(&st.annotate((view, &toks, None)).unwrap().0)
     );
     let on = SpanTagger::open(&dir, Some("mentions"), &o).unwrap();
+    assert_eq!(on.head().lstm_device(), Some(expected_lstm_device(&execution.backend)));
     let (a,) = on.annotate((view, &toks, None, None)).unwrap();
     let (b,) = sp.annotate((view, &toks, None, None)).unwrap();
     assert_eq!((a.tokens, a.kind), (b.tokens, b.kind));
@@ -331,4 +341,69 @@ fn the_device_segments_as_the_cpu() {
         words_of(&on.annotate((view, &toks, None, None)).unwrap().0),
         words_of(&wt.annotate((view, &toks, None, None)).unwrap().0)
     );
+}
+
+#[test]
+fn stacked_bilstm_heads_and_multitask_run_on_device_at_model_and_fastest() {
+    let o = options();
+    let stacked = serde_json::json!([
+        {
+            "name": "pos", "layer": "turboembed:pos", "kind": "HEAD_TOKEN_TAGGER",
+            "labels": ["NOUN", "VERB", "DET", "ADJ", "PUNCT"], "scheme": "SCHEME_TAGS",
+            "word_pooling": "WORD_POOLING_MEAN", "adapter": {"bilstm": {"hidden": 16, "layers": 2}},
+            "decode": "DECODE_CRF", "artifact": "weights-f32", "tensor_prefix": "heads.pos"
+        },
+        {
+            "name": "ner", "layer": "turboembed:entities", "kind": "HEAD_TOKEN_TAGGER",
+            "labels": ["O", "B-PER", "I-PER", "B-LOC", "I-LOC"], "scheme": "SCHEME_BIO",
+            "word_pooling": "WORD_POOLING_FIRST", "adapter": {"bilstm": {"hidden": 16, "layers": 2}},
+            "decode": "DECODE_CRF", "artifact": "weights-f32", "tensor_prefix": "heads.ner"
+        }
+    ]);
+    let dir = bundle("device-stacked-bilstm", |m| m["heads"] = stacked);
+    let seqs = sequences();
+    let cpu_run = HeadRunner::open(&dir, Some("pos"), PosTags::ID, &EncoderOptions::default()).unwrap();
+    let dev_run = HeadRunner::open(&dir, Some("pos"), PosTags::ID, &o).unwrap();
+    let backend = dev_run.execution().backend.clone();
+    if let Some(b) = required() {
+        assert_eq!(backend, b);
+    }
+    let want_dev = expected_lstm_device(&backend);
+    assert_eq!(dev_run.tagger().lstm_device(), Some(want_dev));
+    let want_cpu = cpu_run.decode(&seqs).unwrap();
+    let got_dev = dev_run.decode(&seqs).unwrap();
+    let tier_bound = if o.precision == Precision::Fastest { FASTEST_BOUND as f64 } else { BOUND as f64 };
+    for (s, (a, b)) in seqs.iter().zip(want_cpu.iter().zip(&got_dev)) {
+        assert_eq!(a.tags, b.tags, "stacked bilstm tags on {backend}: {s:?}");
+        for (&pa, &pb) in a.prob.iter().zip(&b.prob) {
+            assert!((pa - pb).abs() <= tier_bound, "prob diff {} vs {}", pa, pb);
+        }
+    }
+
+    let mt_cpu = MultiTask::<(PosTags, Entities)>::open(&dir, &[None, None], &EncoderOptions::default()).unwrap();
+    let mt_dev = MultiTask::<(PosTags, Entities)>::open(&dir, &[None, None], &o).unwrap();
+    for h in mt_dev.heads() {
+        assert_eq!(h.lstm_device(), Some(want_dev));
+    }
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let (pos_d, ent_d) = mt_dev.annotate((view, &toks, None, None)).unwrap();
+    let (pos_c, ent_c) = mt_cpu.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!(pos_d.tags, pos_c.tags);
+    assert_eq!((ent_d.tokens, ent_d.kind), (ent_c.tokens, ent_c.kind));
+
+    if backend == "cuda" {
+        let fast_opts = EncoderOptions { precision: Precision::Fastest, ..o.clone() };
+        let fast_run = HeadRunner::open(&dir, Some("pos"), PosTags::ID, &fast_opts).unwrap();
+        assert_eq!(fast_run.tagger().lstm_device(), Some(turbo::device::Device::Cuda(0)));
+        assert_eq!(fast_run.tagger().lstm_precision(), Some(turbo::device::Precision::Fastest));
+        let got_fast = fast_run.decode(&seqs).unwrap();
+        for (a, f) in want_cpu.iter().zip(&got_fast) {
+            assert_eq!(a.tags, f.tags, "cuda FASTEST stacked bilstm tags");
+            for (&pa, &pf) in a.prob.iter().zip(&f.prob) {
+                assert!((pa - pf).abs() <= FASTEST_BOUND as f64, "FASTEST prob {pa} vs {pf}");
+            }
+        }
+    }
 }

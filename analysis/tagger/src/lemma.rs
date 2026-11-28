@@ -52,8 +52,8 @@ impl Lemmatizer {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<Lemmatizer, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Lemmas::ID, HeadKind::EditTreeLemmatizer)?;
-        let head = EditTreeLemmatizer::load(&bundle, &spec.name)?;
-        let pos = match &spec.pos_input {
+        let mut head = EditTreeLemmatizer::load(&bundle, &spec.name)?;
+        let mut pos = match &spec.pos_input {
             Some(p) => Some(TokenTagger::load(&bundle, &p.head)?),
             None => None,
         };
@@ -66,6 +66,11 @@ impl Lemmatizer {
                     words.hidden()
                 )));
             }
+        }
+        let (dev, prec) = words.lstm_target();
+        head.on_device_at(dev, prec)?;
+        if let Some(t) = &mut pos {
+            t.on_device_at(dev, prec)?;
         }
         Ok(Lemmatizer {
             model: model_ref(&bundle),

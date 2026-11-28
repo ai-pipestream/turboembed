@@ -133,6 +133,16 @@ impl SpanClassifier {
         self.reader.taps()
     }
 
+    /// Moves the word-BiLSTM adapter, when present, to `device` at `precision`.
+    pub fn on_device_at(&mut self, device: crate::device::Device, precision: crate::device::Precision) -> Result<()> {
+        self.reader.on_device_at(device, precision)
+    }
+
+    /// Where the word-BiLSTM adapter runs, or `None` without one.
+    pub fn lstm_device(&self) -> Option<crate::device::Device> {
+        self.reader.lstm_device()
+    }
+
     /// Whether the head reads each word's text (a `hash_embed`).
     pub fn reads_forms(&self) -> bool {
         self.reader.reads_forms()

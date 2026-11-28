@@ -74,19 +74,19 @@ pub fn decode_tagger_language(
 ) -> Result<Vec<Decoded>> {
     let (mut scores, mut work) = (Vec::new(), tagger::Work::default());
     let labels = tagger.labels().len();
-    let stride = tagger.taps() * tagger.hidden();
-    let mut out = Vec::with_capacity(features.len());
-    for (f, forms) in features.iter().zip(forms) {
-        let n = f.len() / stride;
-        let words: Vec<u32> = (0..n as u32).collect();
-        tagger.scores_language(f, &words, Some(forms), language, &mut scores, &mut work)?;
+    let lens = tagger.scores_sequences_language(features, forms, language, &mut scores, &mut work)?;
+    let mut out = Vec::with_capacity(lens.len());
+    let mut at = 0usize;
+    for n in lens {
+        let seq_scores = &scores[at * labels..][..n * labels];
+        at += n;
         let mut tags = Vec::new();
-        tagger.decode(&scores, n, &mut tags)?;
+        tagger.decode(seq_scores, n, &mut tags)?;
         let prob = tags
             .iter()
             .enumerate()
             .map(|(w, &t)| {
-                let row = &scores[w * labels..][..labels];
+                let row = &seq_scores[w * labels..][..labels];
                 let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64;
                 let z: f64 = row.iter().map(|&v| (v as f64 - m).exp()).sum();
                 (row[t as usize] as f64 - m).exp() / z

@@ -33,6 +33,7 @@ pub(crate) struct Reader {
     words: Mutex<WordEncoder>,
     pub(crate) model: ModelRef,
     pub(crate) execution: Execution,
+    pub(crate) lstm_target: (turbo::device::Device, turbo::device::Precision),
     width: usize,
 }
 
@@ -50,6 +51,7 @@ impl Reader {
         }
         Ok(Reader {
             execution: words.execution().clone(),
+            lstm_target: words.lstm_target(),
             width: words.width(),
             model: model_ref(bundle),
             words: Mutex::new(words),
@@ -89,8 +91,9 @@ impl SentenceTagger {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<SentenceTagger, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Sentences::ID, HeadKind::SentenceBoundary)?;
-        let head = SentenceBoundary::load(&bundle, &spec.name)?;
+        let mut head = SentenceBoundary::load(&bundle, &spec.name)?;
         let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
+        head.on_device_at(read.lstm_target.0, read.lstm_target.1)?;
         Ok(SentenceTagger { head, read })
     }
 
@@ -198,8 +201,9 @@ impl WordTagger {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<WordTagger, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Words::ID, HeadKind::TokenSplit)?;
-        let head = TokenSplitter::load(&bundle, &spec.name)?;
+        let mut head = TokenSplitter::load(&bundle, &spec.name)?;
         let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
+        head.on_device_at(read.lstm_target.0, read.lstm_target.1)?;
         Ok(WordTagger { head, read })
     }
 

@@ -37,7 +37,7 @@ impl WordSplitter {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<WordSplitter, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Words::ID, HeadKind::TokenSplit)?;
-        let splitter = TokenSplitter::load(&bundle, &spec.name)?;
+        let mut splitter = TokenSplitter::load(&bundle, &spec.name)?;
         let taps = spec.layer_mix.map_or(1, |m| m.layers as usize);
         let words = open_words(dir, o, taps)?;
         if words.hidden() != splitter.hidden() {
@@ -47,6 +47,8 @@ impl WordSplitter {
                 words.hidden()
             )));
         }
+        let (dev, prec) = words.lstm_target();
+        splitter.on_device_at(dev, prec)?;
         Ok(WordSplitter {
             execution: words.execution().clone(),
             width: words.width(),

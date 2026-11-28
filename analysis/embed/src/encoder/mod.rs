@@ -268,6 +268,25 @@ impl Encoder {
         &self.device
     }
 
+    /// Where a [`turbo::device`] op beside this session runs, and at what
+    /// precision: on this session's CUDA, Level Zero or Metal GPU (with F16
+    /// weights at FASTEST on CUDA, F32 elsewhere), or on the CPU for the
+    /// CPU backend and fixed-graph accelerators that have no `turbo::device`
+    /// backend.
+    pub fn device_lstm_target(&self) -> (turbo::device::Device, turbo::device::Precision) {
+        match (self.info.execution.backend.as_str(), self.desc.precision) {
+            ("cuda", TURBO_PRECISION_FASTEST) => {
+                (turbo::device::Device::Cuda(self.device.ordinal), turbo::device::Precision::Fastest)
+            }
+            ("cuda", _) => (turbo::device::Device::Cuda(self.device.ordinal), turbo::device::Precision::Model),
+            ("levelzero", _) => {
+                (turbo::device::Device::LevelZero(self.device.ordinal), turbo::device::Precision::Model)
+            }
+            ("metal", _) => (turbo::device::Device::Metal(self.device.ordinal), turbo::device::Precision::Model),
+            _ => (turbo::device::Device::Cpu, turbo::device::Precision::Model),
+        }
+    }
+
     /// The loaded model as `turbo_model_get_info` reports it: its id,
     /// revision and hashes among the rest.
     pub fn model_info(&self) -> &turbo_model_info {

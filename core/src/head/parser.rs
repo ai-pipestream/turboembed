@@ -157,6 +157,16 @@ impl BiaffineParser {
         self.reader.taps()
     }
 
+    /// Moves the word-BiLSTM adapter, when present, to `device` at `precision`.
+    pub fn on_device_at(&mut self, device: crate::device::Device, precision: crate::device::Precision) -> Result<()> {
+        self.reader.on_device_at(device, precision)
+    }
+
+    /// Where the word-BiLSTM adapter runs, or `None` without one.
+    pub fn lstm_device(&self) -> Option<crate::device::Device> {
+        self.reader.lstm_device()
+    }
+
     /// The arc scores [n, n + 1] of one sentence into `out` (row d - 1:
     /// dependent d's score for each head 0..=n, 0 the root), from its
     /// subword states and word map as [`super::TokenTagger::scores`]

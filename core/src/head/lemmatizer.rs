@@ -134,6 +134,16 @@ impl EditTreeLemmatizer {
         self.reader.taps()
     }
 
+    /// Moves the word-BiLSTM adapter, when present, to `device` at `precision`.
+    pub fn on_device_at(&mut self, device: crate::device::Device, precision: crate::device::Precision) -> Result<()> {
+        self.reader.on_device_at(device, precision)
+    }
+
+    /// Where the word-BiLSTM adapter runs, or `None` without one.
+    pub fn lstm_device(&self) -> Option<crate::device::Device> {
+        self.reader.lstm_device()
+    }
+
     /// The tree scores [words, trees] of one sequence into `out`, from its
     /// subword states and word map as `TokenTagger::scores` takes them
     /// and, with a `pos_input`, each word's tag index (`tags`, one a

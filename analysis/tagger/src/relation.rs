@@ -66,6 +66,14 @@ impl RelationHead {
         &self.kinds
     }
 
+    pub fn on_device_at(
+        &mut self,
+        device: turbo::device::Device,
+        precision: turbo::device::Precision,
+    ) -> Result<(), CoreError> {
+        self.head.on_device_at(device, precision)
+    }
+
     /// Each sequence's mentions, by sequence: the entity behind each, and
     /// the mention itself in the sequence's words.
     fn mentions(&self, tokens: &Tokens, entities: &Entities, seqs: &[Vec<usize>]) -> Vec<Found> {
@@ -179,8 +187,9 @@ impl RelationTagger {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<RelationTagger, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Relations::ID, HeadKind::RelationClassifier)?;
-        let head = RelationHead::load(&bundle, spec)?;
+        let mut head = RelationHead::load(&bundle, spec)?;
         let read = Reader::open(dir, &bundle, spec, head.head.hidden(), o)?;
+        head.on_device_at(read.lstm_target.0, read.lstm_target.1)?;
         Ok(RelationTagger { head, read })
     }
 

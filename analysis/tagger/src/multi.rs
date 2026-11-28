@@ -130,6 +130,38 @@ impl Head {
             Head::Split { splitter } => vec![spec_taps(splitter.spec())],
         }
     }
+
+    /// Moves every word-BiLSTM adapter of the head (and its POS tagger) to `device` at `precision`.
+    pub fn on_device_at(
+        &mut self,
+        device: turbo::device::Device,
+        precision: turbo::device::Precision,
+    ) -> Result<(), CoreError> {
+        match self {
+            Head::Tagger { tagger, .. } => tagger.on_device_at(device, precision),
+            Head::Parser { parser, .. } => parser.on_device_at(device, precision),
+            Head::Lemma { lemmatizer, pos } => {
+                lemmatizer.on_device_at(device, precision)?;
+                if let Some(t) = pos {
+                    t.on_device_at(device, precision)?;
+                }
+                Ok(())
+            }
+            Head::Sentence { boundary } => boundary.on_device_at(device, precision),
+            Head::Split { splitter } => splitter.on_device_at(device, precision),
+        }
+    }
+
+    /// Where the head's own word-BiLSTM adapter runs, or `None` without one.
+    pub fn lstm_device(&self) -> Option<turbo::device::Device> {
+        match self {
+            Head::Tagger { tagger, .. } => tagger.lstm_device(),
+            Head::Parser { parser, .. } => parser.lstm_device(),
+            Head::Lemma { lemmatizer, .. } => lemmatizer.lstm_device(),
+            Head::Sentence { boundary } => boundary.lstm_device(),
+            Head::Split { splitter } => splitter.lstm_device(),
+        }
+    }
 }
 
 /// Whole-view sequences, forms, and pooled features for whole-view passes.
@@ -231,7 +263,7 @@ impl<W: Outputs> MultiTask<W> {
             return Err(refuse(format!("{} head names for {} outputs", names.len(), W::N)));
         }
         let bundle = Bundle::open(dir)?;
-        let heads = W::open(&bundle, names)?;
+        let mut heads = W::open(&bundle, names)?;
         for (i, h) in heads.iter().enumerate() {
             if heads[..i].iter().any(|o| o.spec().name == h.spec().name) {
                 return Err(refuse(format!("head {:?} is named for two outputs", h.spec().name)));
@@ -267,6 +299,10 @@ impl<W: Outputs> MultiTask<W> {
                     words.hidden()
                 )));
             }
+        }
+        let (dev, prec) = words.lstm_target();
+        for h in &mut heads {
+            h.on_device_at(dev, prec)?;
         }
         let mut poolings: Vec<WordPooling> = Vec::new();
         for p in heads.iter().flat_map(Head::poolings) {

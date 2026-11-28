@@ -102,7 +102,11 @@ impl Model {
             return Err("gliner package byte limit exceeded".into());
         }
         config.check(encoder.config())?;
-        let heads = heads::Heads::load(&config, encoder.config(), heads)?;
+        let (lstm_device, lstm_precision) = match &encoder {
+            Backend::Cpu(_) => (turbo::device::Device::Cpu, turbo::device::Precision::Model),
+            Backend::Table(t, _) => t.lstm_target,
+        };
+        let heads = heads::Heads::load_on(&config, encoder.config(), heads, lstm_device, lstm_precision)?;
         let tokenizer = SentencePiece::parse(sentencepiece).map_err(|e| e.message)?;
         if tokenizer.len() > encoder.config().vocabulary {
             return Err("gliner tokenizer exceeds encoder vocabulary".into());
@@ -122,6 +126,14 @@ impl Model {
             Backend::Cpu(_) => None,
             Backend::Table(t, _) => Some(&t.execution),
         }
+    }
+    /// Where the recurrent word-level BiLSTM runs.
+    pub fn lstm_device(&self) -> turbo::device::Device {
+        self.heads.lstm_device()
+    }
+    /// The precision of the recurrent word-level BiLSTM.
+    pub fn lstm_precision(&self) -> turbo::device::Precision {
+        self.heads.lstm_precision()
     }
     pub(crate) fn encoder_config(&self) -> &turbo::deberta::Config {
         self.encoder.config()

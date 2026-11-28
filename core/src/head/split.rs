@@ -142,6 +142,16 @@ impl TokenSplitter {
         self.scorer.reads_forms()
     }
 
+    /// Moves the word-BiLSTM adapter, when present, to `device` at `precision`.
+    pub fn on_device_at(&mut self, device: crate::device::Device, precision: crate::device::Precision) -> Result<()> {
+        self.scorer.on_device_at(device, precision)
+    }
+
+    /// Where the word-BiLSTM adapter runs, or `None` without one.
+    pub fn lstm_device(&self) -> Option<crate::device::Device> {
+        self.scorer.lstm_device()
+    }
+
     /// The label scores [tokens, labels] of one sequence, as
     /// [`TokenTagger::scores_forms`] gives a tagger's. Returns the number
     /// of tokens.

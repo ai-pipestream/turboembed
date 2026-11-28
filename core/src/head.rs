@@ -10,6 +10,7 @@ pub use crate::projection::ProjectionHead;
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
+mod adapter;
 mod linear;
 mod words;
 pub use linear::Linear;

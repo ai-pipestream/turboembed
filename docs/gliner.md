@@ -21,9 +21,11 @@ a core bundle of `FAMILY_DEBERTA_V2` instead, through the backend table, on
 the device `EncoderOptions` names: cpu, cuda, levelzero or metal (#883). One run
 a window, and only the rows the heads read come back: a one-token range at
 each `<<ENT>>` marker and each word's first subword, through the range
-write, unnormalized, as SaT reads its tokens. The heads, packing and
-decoding are the same; the longest sequence is the session's, and
-`Model::execution` names where it ran. `analysis/gliner/tests/device.rs` holds a device to
+write, unnormalized, as SaT reads its tokens. On CUDA, Level Zero and Metal
+the recurrent word-level BiLSTM runs on that GPU (`turbo::device::lstm`,
+`Model::lstm_device`), while linear projections, span scoring, packing and
+decoding stay on the host; the longest sequence is the session's, and
+`Model::execution` names where the encoder ran. `analysis/gliner/tests/device.rs` holds a device to
 the CPU encoder on `testdata/tiny-deberta-bundle` (every logit within
 1e-4, and 1e-3 of its input's largest, the packed ids and decoded entities
 the same): on the Arc Pro B70, the RTX 4080 SUPER and the Apple M2 the
