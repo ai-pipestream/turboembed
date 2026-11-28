@@ -1,7 +1,7 @@
 //! The document graph codec for this crate's layer, so the stopword
 //! flags cross the export boundary with the rest of the graph.
 
-use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, Reader, Writer};
+use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, aligned_len};
 use turbo_analysis::{Document, Layer};
 use turbo_analysis_layers::Tokens;
 
@@ -9,15 +9,6 @@ use crate::{StopwordLanguage, Stopwords};
 
 fn malformed(detail: impl Into<String>) -> ExportError {
     ExportError::Malformed(detail.into())
-}
-
-/// The item count of the already restored `Target` instance an
-/// aligned layer on this record is aligned to: the instance the
-/// record's provenance resolves `Target` to, else the default.
-fn aligned_len<Target: Layer>(cx: &ImportCx) -> Result<usize, ExportError> {
-    let name = Target::NAME.to_string();
-    let instance = cx.resolved_instance(&name).to_owned();
-    cx.layer_len(&LayerRef { layer: name, instance })
 }
 
 impl LayerCodec for Stopwords {

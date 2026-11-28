@@ -136,7 +136,7 @@ pub(super) fn select(rt: &Runtime, task: u32) -> Result<(Option<u32>, String)> {
     for (i, d) in rt.devices.iter().enumerate() {
         let i = i as u32;
         let label = format!("device {i} ({} {})", d.backend.name(), cstr(&d.info.name));
-        if d.info.kind == TURBO_DEVICE_CPU && task != TURBO_TASK_RERANK && task != TURBO_TASK_EXTRACTIVE_QA {
+        if d.info.kind == TURBO_DEVICE_CPU {
             skipped.push(format!("{label}: a CPU is never selected"));
             continue;
         }

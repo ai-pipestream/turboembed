@@ -341,6 +341,17 @@ impl State {
         res
     }
 
+    /// The server's runtime, created on first use.
+    pub(crate) fn runtime(&self) -> crate::api::Result<&Runtime> {
+        match self.runtime.get() {
+            Some(rt) => Ok(rt),
+            None => {
+                let rt = Runtime::create()?;
+                Ok(self.runtime.get_or_init(|| rt))
+            }
+        }
+    }
+
     fn load_model_inner(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
         if gliner::load(self, m)? {
             return Ok(());
@@ -349,13 +360,7 @@ impl State {
             let model = m.name.clone();
             move |failure: Failure| LoadError { model, call, failure, fields }
         };
-        let rt = match self.runtime.get() {
-            Some(rt) => rt,
-            None => {
-                let rt = Runtime::create().map_err(fail("turbo_runtime_create", &[]))?;
-                self.runtime.get_or_init(|| rt)
-            }
-        };
+        let rt = self.runtime().map_err(fail("turbo_runtime_create", &[]))?;
         let c = &m.config;
         let select_task = crate::tasks::peek_task(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let device = match c.device {

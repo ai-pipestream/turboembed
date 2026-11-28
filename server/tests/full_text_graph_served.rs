@@ -172,6 +172,7 @@ async fn serve(gliner: &Path, gliner2: &Path) -> (Server, Client, Vec<BundleCapa
             name: name.into(),
             bundle: path.to_string_lossy().into_owned(),
             sessions: 1,
+            select_device: true,
             ..Default::default()
         };
         client.load_bundle(request).await.unwrap();

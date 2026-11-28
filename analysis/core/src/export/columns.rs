@@ -119,6 +119,64 @@ pub fn get_tagset(r: &mut Reader<'_>) -> Result<Arc<TagSet>, ExportError> {
     Ok(TagSet::new(&name, &labels))
 }
 
+/// A column of `u32`s: its length, then each value.
+pub fn put_u32s(w: &mut Writer, values: &[u32]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for &v in values {
+        w.u32(v);
+    }
+    Ok(())
+}
+
+/// The column [`put_u32s`] wrote. Nothing is reserved from the length
+/// read: a forged one runs out of bytes, not out of memory.
+pub fn get_u32s(r: &mut Reader<'_>) -> Result<Vec<u32>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(r.u32()?);
+    }
+    Ok(values)
+}
+
+/// A column of `f64`s: its length, then each value.
+pub fn put_f64s(w: &mut Writer, values: &[f64]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for &v in values {
+        w.f64(v);
+    }
+    Ok(())
+}
+
+/// The column [`put_f64s`] wrote, read as [`get_u32s`] reads its own.
+pub fn get_f64s(r: &mut Reader<'_>) -> Result<Vec<f64>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(r.f64()?);
+    }
+    Ok(values)
+}
+
+/// A column of variants, each written as its position in `table`: a
+/// position outside the table is refused, naming `what`, and never read
+/// as some other variant.
+pub fn get_variants<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<Vec<E>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        let at = r.u8()? as usize;
+        values.push(table.get(at).copied().ok_or_else(|| malformed(format!("a {what} discriminant of {at}")))?);
+    }
+    Ok(values)
+}
+
+/// The item count of the already restored `Target` instance an
+/// aligned layer on this record is aligned to: the instance the
+/// record's provenance resolves `Target` to, else the default.
+pub fn aligned_len<Target: Layer>(cx: &ImportCx) -> Result<usize, ExportError> {
+    let name = Target::NAME.to_string();
+    let instance = cx.resolved_instance(&name).to_owned();
+    cx.layer_len(&LayerRef { layer: name, instance })
+}
+
 pub(super) fn put_layer_ref(w: &mut Writer, layer: &LayerRef) -> Result<(), ExportError> {
     w.str(&layer.layer)?;
     w.str(&layer.instance)

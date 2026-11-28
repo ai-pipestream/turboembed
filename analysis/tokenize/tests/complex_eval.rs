@@ -309,6 +309,6 @@ fn dictionary_and_lstm_against_gold() {
         assert_eq!(lao_def, lao_dict_lo);
         // ye-kyaw-thu/SeqLabeling commit 8025a122e95422901e0907f0fc8ca4b5c1c34235
         assert_eq!(lao_dict, Score { sentences: 4613, gold: 64882, returned: 73125, correct: 45471 });
-        assert_eq!(lao_lstm, Score { sentences: 4613, gold: 64882, returned: 75937, correct: 44597 });
+        assert_eq!(lao_lstm, Score { sentences: 4613, gold: 64882, returned: 75208, correct: 44586 });
     }
 }

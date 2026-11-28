@@ -434,3 +434,17 @@ async fn rerank_response_reports_query_truncation() {
     assert!(seen > kept, "seen {seen}, kept {kept}");
     s.stop().await;
 }
+
+#[tokio::test]
+async fn select_refuses_a_cpu_for_rerank_and_qa() {
+    if turbo_kserve::api::version().split_whitespace().skip(1).any(|b| b != "cpu") {
+        return;
+    }
+    for (bundle, name) in [(make_rerank_bundle("PAIR_BERT"), "rerank"), (make_qa_bundle(), "qa")] {
+        let config = ModelConfig { device: Device::Select, ..cfg(&bundle.0, name, 1) };
+        let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![config], MAX, Serve::default()).await.unwrap();
+        let e = s.load().await.unwrap_err();
+        assert!(e.contains("turbo_runtime_select: TURBO_E_DEVICE_NOT_FOUND"), "{name}: {e}");
+        s.stop().await;
+    }
+}

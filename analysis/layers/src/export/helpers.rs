@@ -15,7 +15,8 @@ pub(super) fn done(r: &Reader<'_>, what: &str) -> Result<(), ExportError> {
     if r.is_done() { Ok(()) } else { Err(malformed(format!("trailing bytes in a {what} payload"))) }
 }
 
-pub(super) fn put_strs(w: &mut Writer, strs: &Strs) -> Result<(), ExportError> {
+/// A column of strings: its length, then each string.
+pub fn put_strs(w: &mut Writer, strs: &Strs) -> Result<(), ExportError> {
     w.usize(strs.len())?;
     for s in strs.iter() {
         w.str(s)?;
@@ -23,7 +24,8 @@ pub(super) fn put_strs(w: &mut Writer, strs: &Strs) -> Result<(), ExportError> {
     Ok(())
 }
 
-pub(super) fn get_strs(r: &mut Reader<'_>) -> Result<Strs, ExportError> {
+/// The column [`put_strs`] wrote.
+pub fn get_strs(r: &mut Reader<'_>) -> Result<Strs, ExportError> {
     let mut strs = Strs::default();
     for _ in 0..r.usize()? {
         strs.push(&r.string()?);
@@ -86,22 +88,6 @@ pub(super) fn get_f32s(r: &mut Reader<'_>) -> Result<Vec<f32>, ExportError> {
     Ok(values)
 }
 
-pub(super) fn put_f64s(w: &mut Writer, values: &[f64]) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for v in values {
-        w.f64(*v);
-    }
-    Ok(())
-}
-
-pub(super) fn get_f64s(r: &mut Reader<'_>) -> Result<Vec<f64>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        values.push(r.f64()?);
-    }
-    Ok(values)
-}
-
 pub(super) fn put_opt_f64s(w: &mut Writer, values: &Option<Vec<f64>>) -> Result<(), ExportError> {
     match values {
         None => w.u8(0),
@@ -160,22 +146,6 @@ pub(super) fn get_bools(r: &mut Reader<'_>) -> Result<Vec<bool>, ExportError> {
             1 => true,
             tag => return Err(malformed(format!("a boolean tag of {tag}"))),
         });
-    }
-    Ok(values)
-}
-
-pub(super) fn put_u32s(w: &mut Writer, values: &[u32]) -> Result<(), ExportError> {
-    w.usize(values.len())?;
-    for v in values {
-        w.u32(*v);
-    }
-    Ok(())
-}
-
-pub(super) fn get_u32s(r: &mut Reader<'_>) -> Result<Vec<u32>, ExportError> {
-    let mut values = Vec::new();
-    for _ in 0..r.usize()? {
-        values.push(r.u32()?);
     }
     Ok(values)
 }

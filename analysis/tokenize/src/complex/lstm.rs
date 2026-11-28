@@ -378,10 +378,18 @@ impl<'a> Lstm<'a> {
                 *w = (fw_k + bw_k) + self.time_b[k];
             }
             // A boundary follows a character whose best class ends a
-            // word: E (2), or S (3), a word of that one character.
+            // word: E (2), or S (3), a word of that one character. The
+            // one exception is a Lao leading ho (U+0EAB) before a
+            // sonorant: the pair is one consonant cluster (as in
+            // U+0EAB U+0E99 U+0EB1 U+0E81), and the model still calls
+            // the ho S there.
             let ends_word = |k: usize| weights.iter().enumerate().all(|(j, &w)| j == k || weights[k] > w);
-            if ends_word(2) || ends_word(3) {
-                emit(scratch.chars[i].1);
+            let end = scratch.chars[i].1;
+            let leading_ho = ends_word(3)
+                && text[end..].starts_with(['\u{0E99}', '\u{0EA1}', '\u{0EA5}'])
+                && text[..end].ends_with('\u{0EAB}');
+            if ends_word(2) || (ends_word(3) && !leading_ho) {
+                emit(end);
             }
         }
         emit(text.len());
@@ -443,6 +451,15 @@ mod tests {
         thai.segment_with("รถไฟฟ้า", &mut scratch, |b| second.push(b));
         assert_eq!((scratch.chars.capacity(), scratch.h_fw.capacity(), scratch.h_bw.capacity()), cap);
         assert_eq!(second, [6, 12, 21]);
+    }
+
+    #[test]
+    fn a_lao_leading_ho_cluster_stays_one_word() {
+        // ໜັກ and ໜ້າ: the ho is the cluster's leading consonant, not a
+        // one-character word, whatever class the model gives it.
+        let lao = Lstm::from_bytes(bundled_lstm(ComplexScript::Lao)).unwrap();
+        assert_eq!(segments(&lao, "\u{0EAB}\u{0E99}\u{0EB1}\u{0E81}"), ["\u{0EAB}\u{0E99}\u{0EB1}\u{0E81}"]);
+        assert_eq!(segments(&lao, "\u{0EAB}\u{0E99}\u{0EC9}\u{0EB2}"), ["\u{0EAB}\u{0E99}\u{0EC9}\u{0EB2}"]);
     }
 
     #[test]

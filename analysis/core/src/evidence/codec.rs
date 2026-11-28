@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::doc::Document;
-use crate::export::{ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer};
+use crate::export::{ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, get_u32s, put_u32s};
 use crate::ids::canonical_model_id;
 use crate::layer::{Layer, ModelRef};
 use crate::span::Span;
@@ -28,21 +28,6 @@ fn get_scores(r: &mut Reader<'_>) -> Result<Vec<(u32, f64)>, ExportError> {
     let mut v = Vec::new();
     for _ in 0..r.usize()? {
         v.push((r.u32()?, r.f64()?));
-    }
-    Ok(v)
-}
-
-fn put_u32s(w: &mut Writer, v: &[u32]) -> Result<(), ExportError> {
-    w.usize(v.len())?;
-    v.iter().for_each(|&x| w.u32(x));
-    Ok(())
-}
-
-fn get_u32s(r: &mut Reader<'_>) -> Result<Vec<u32>, ExportError> {
-    let n = r.usize()?;
-    let mut v = Vec::new();
-    for _ in 0..n {
-        v.push(r.u32()?);
     }
     Ok(v)
 }

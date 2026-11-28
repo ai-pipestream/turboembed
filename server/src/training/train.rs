@@ -20,7 +20,7 @@ use turbo_bundle::distill::{self, Progress};
 
 use super::{STAGING, blocking, check_name, describe::describe, invalid, plain, runtime, serving, teacher};
 use crate::api::{
-    Failure, Runtime, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_BUSY, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE,
+    Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_BUSY, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE,
 };
 use crate::config::{Device, ModelConfig};
 use crate::proto::training::train_static_model_update::Update;
@@ -296,13 +296,7 @@ pub(super) fn staging(dir: &Path, name: &str) -> PathBuf {
 
 /// The CPU's runtime index: a static model runs on the CPU backend.
 fn cpu(state: &State) -> Result<u32, Status> {
-    let rt = match state.runtime.get() {
-        Some(rt) => rt,
-        None => {
-            let rt = Runtime::create().map_err(plain)?;
-            state.runtime.get_or_init(|| rt)
-        }
-    };
+    let rt = state.runtime().map_err(plain)?;
     (0..)
         .map_while(|i| rt.device_info(i).ok().map(|d| (i, d)))
         .find(|(_, d)| d.kind == turbo::TURBO_DEVICE_CPU)
