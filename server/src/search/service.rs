@@ -1,4 +1,4 @@
-//! Tonic `TurboSearchService` implementation (`#1221`).
+//! Tonic `TurboSearchService` implementation (`#1221`, `#2609`).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::pin::Pin;
@@ -11,12 +11,14 @@ use tonic::metadata::MetadataMap;
 use tonic::{Code, Request, Response, Status, Streaming};
 
 use crate::api::Failure;
+use crate::deadline::{Deadline, deadline_status};
+use crate::priority::Priority;
 use crate::proto::search::turbo_search_service_server::TurboSearchService;
 use crate::proto::search::*;
-use crate::search::ingest::{analyze_chunk_terms, commit_staged_documents, stage_document};
-use crate::search::query::execute_search;
+use crate::search::exec::{run_index_documents, run_reindex, run_search};
+use crate::search::ingest::analyze_chunk_terms;
 use crate::search::registry::{
-    ALREADY_EXISTS_FIELD, CollectionState, SearchRegistry, already_exists, bad_arg, not_admin, not_found, parse_space,
+    ALREADY_EXISTS_FIELD, CollectionState, SearchRegistry, already_exists, bad_arg, not_admin, not_found,
     providers_list,
 };
 use crate::search::snapshot::{load_index_from_dir, persist_index_to_dir};
@@ -45,6 +47,20 @@ fn reply<T>(r: crate::api::Result<T>) -> std::result::Result<Response<T>, Status
             to_status(&f, &[])
         }
     })
+}
+
+fn check_rpc_headers<T>(
+    state: &State,
+    req: &Request<T>,
+    default_priority: Priority,
+) -> std::result::Result<(Priority, Deadline), Status> {
+    let priority = Priority::from_metadata(req.metadata())?.unwrap_or(default_priority);
+    let deadline = Deadline::from_request(req)?;
+    if deadline.is_expired() {
+        state.metrics.record_cancelled_before_exec();
+        return Err(deadline_status());
+    }
+    Ok((priority, deadline))
 }
 
 #[tonic::async_trait]
@@ -123,9 +139,13 @@ impl TurboSearchService for SearchService {
         &self,
         req: Request<Streaming<IndexDocumentRequest>>,
     ) -> std::result::Result<Response<IndexDocumentsResponse>, Status> {
+        let (priority, deadline) = check_rpc_headers(&self.state, &req, Priority::Bulk)?;
         let mut stream = req.into_inner();
         let mut items: Vec<IndexDocumentRequest> = Vec::new();
         while let Some(item) = stream.next().await {
+            if deadline.is_expired() {
+                return Err(deadline_status());
+            }
             if items.len() >= MAX_STREAM_DOCUMENTS {
                 return reply(Err(bad_arg(format!(
                     "IndexDocuments stream exceeds maximum of {MAX_STREAM_DOCUMENTS} documents"
@@ -145,47 +165,21 @@ impl TurboSearchService for SearchService {
         if items.is_empty() {
             return reply(Err(bad_arg("IndexDocuments stream must contain at least one document")));
         }
-        let target_arg = items[0].index_name.clone();
-        let state = self.state.clone();
-        let registry = self.registry.clone();
-        let res = tokio::task::spawn_blocking(move || -> crate::api::Result<IndexDocumentsResponse> {
-            let (resolved_name, ix_lock) = registry.resolve_index(&target_arg)?;
-            let mut ix = ix_lock.write().unwrap_or_else(|e| e.into_inner());
-            let mut staged = Vec::with_capacity(items.len());
-            for doc_req in items {
-                staged.push(stage_document(&ix, &state, doc_req)?);
-            }
-            let mut batch_chunk_terms = Vec::new();
-            let (indexed_docs, indexed_chunks) = commit_staged_documents(&mut ix, staged, &mut batch_chunk_terms)?;
-            let col_name = if !ix.spec.collection_name.is_empty() {
-                ix.spec.collection_name.clone()
-            } else {
-                resolved_name.clone()
-            };
-            let drift = registry.record_collection_update(&col_name, &resolved_name, &batch_chunk_terms);
-            Ok(IndexDocumentsResponse {
-                index_name: resolved_name,
-                indexed_documents: indexed_docs,
-                indexed_chunks,
-                drift,
-            })
-        })
-        .await
-        .map_err(|e| Status::internal(e.to_string()))?;
+        let res =
+            run_index_documents(self.registry.clone(), self.state.clone(), items, priority, deadline.clone()).await;
+        if deadline.is_expired() {
+            return Err(deadline_status());
+        }
         reply(res)
     }
 
     async fn search(&self, req: Request<SearchRequest>) -> std::result::Result<Response<SearchResponse>, Status> {
+        let (priority, deadline) = check_rpc_headers(&self.state, &req, Priority::Interactive)?;
         let r = req.into_inner();
-        let state = self.state.clone();
-        let registry = self.registry.clone();
-        let res = tokio::task::spawn_blocking(move || -> crate::api::Result<SearchResponse> {
-            let (resolved_name, ix_lock) = registry.resolve_index(&r.index_name)?;
-            let ix = ix_lock.read().unwrap_or_else(|e| e.into_inner());
-            execute_search(resolved_name, &ix, &state, r)
-        })
-        .await
-        .map_err(|e| Status::internal(e.to_string()))?;
+        let res = run_search(self.registry.clone(), self.state.clone(), r, priority, deadline.clone()).await;
+        if deadline.is_expired() {
+            return Err(deadline_status());
+        }
         reply(res)
     }
 
@@ -228,67 +222,12 @@ impl TurboSearchService for SearchService {
     }
 
     async fn reindex(&self, req: Request<ReindexRequest>) -> std::result::Result<Response<ReindexResponse>, Status> {
+        let (priority, deadline) = check_rpc_headers(&self.state, &req, Priority::Bulk)?;
         let r = req.into_inner();
-        let state = self.state.clone();
-        let registry = self.registry.clone();
-        let res = tokio::task::spawn_blocking(move || -> crate::api::Result<ReindexResponse> {
-            let target_spec = r.target_spec.ok_or_else(|| bad_arg("ReindexRequest.target_spec is required"))?;
-            let target_space = parse_space(target_spec.space.as_ref())?;
-            let target_name = target_spec.index_name.clone();
-            let (_, src_lock) = registry.resolve_index(&r.source_index)?;
-            let (src_space, src_budget, src_had_vectors, retained_docs) = {
-                let src = src_lock.read().unwrap_or_else(|e| e.into_inner());
-                let had_vecs = src.chunks.iter().any(|c| c.dense_vector.is_some() || !c.token_vectors.is_empty());
-                (src.space.clone(), src.spec.chunk_budget_tokens, had_vecs, src.docs.clone())
-            };
-            let space_changed = target_space != src_space;
-            let budget_changed = target_spec.chunk_budget_tokens != src_budget;
-            if space_changed && src_had_vectors && target_spec.embed_bundle.is_empty() {
-                return Err(bad_arg(
-                    "cannot reindex vectors into a different SpaceSpec without a matching target embed_bundle",
-                ));
-            }
-            registry.create_index(&state, target_spec)?;
-            let (_, dst_lock) = registry.resolve_index(&target_name)?;
-            {
-                let mut dst = dst_lock.write().unwrap_or_else(|e| e.into_inner());
-                let mut staged = Vec::with_capacity(retained_docs.len());
-                for d in retained_docs {
-                    let chunks = if space_changed {
-                        let mut stripped = d.raw_chunks;
-                        for c in &mut stripped {
-                            c.dense_vector.clear();
-                            c.token_vectors.clear();
-                        }
-                        stripped
-                    } else if budget_changed && d.raw_chunks.is_empty() {
-                        Vec::new()
-                    } else {
-                        d.chunks
-                    };
-                    let doc_req = IndexDocumentRequest {
-                        index_name: target_name.clone(),
-                        doc_id: d.doc_id,
-                        text: d.text,
-                        graph: d.graph,
-                        chunks,
-                        attributes: d.attributes.into_iter().collect(),
-                        layout_boxes: Vec::new(),
-                    };
-                    staged.push(stage_document(&dst, &state, doc_req)?);
-                }
-                let mut batch_terms = Vec::new();
-                commit_staged_documents(&mut dst, staged, &mut batch_terms)?;
-            }
-            if !r.swap_alias.is_empty() {
-                let mut aliases = registry.aliases.write().unwrap_or_else(|e| e.into_inner());
-                aliases.insert(r.swap_alias.clone(), target_name.clone());
-            }
-            let summary = dst_lock.read().unwrap_or_else(|e| e.into_inner()).summary();
-            Ok(ReindexResponse { summary: Some(summary), swapped_alias: r.swap_alias })
-        })
-        .await
-        .map_err(|e| Status::internal(e.to_string()))?;
+        let res = run_reindex(self.registry.clone(), self.state.clone(), r, priority, deadline.clone()).await;
+        if deadline.is_expired() {
+            return Err(deadline_status());
+        }
         reply(res)
     }
 

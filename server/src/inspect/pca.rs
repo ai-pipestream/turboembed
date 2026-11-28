@@ -6,7 +6,7 @@ use turbo_analysis::{Ix, Layer, Span};
 use turbo_analysis_layers::Vectors;
 use turbo_chunker::{ProjectionDims, VectorProjection};
 
-use super::query::{Embed, place_query};
+use super::query::{Embedded, place_query};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::Offsetter;
 use crate::proto::result::{ProjectedPointProto, QueryPointProto, VectorProjectionProto};
@@ -50,7 +50,7 @@ pub(crate) fn compute_pca<L: Layer>(
     text: &str,
     offsetter: &Offsetter,
     pca_dims: u32,
-    query: Option<(&str, &Embed<'_>)>,
+    query: Option<&Embedded>,
 ) -> Result<(VectorProjectionProto, Option<QueryPointProto>), Failure> {
     let n = spans.len();
     let d = vectors.dim as usize;
@@ -97,7 +97,7 @@ pub(crate) fn compute_pca<L: Layer>(
         })
         .collect();
     let placed = match query {
-        Some((text, embed)) => Some(place_query(vectors, &projection, text, embed)?),
+        Some(embedded) => Some(place_query(vectors, &projection, embedded)?),
         None => None,
     };
     let proto = VectorProjectionProto {

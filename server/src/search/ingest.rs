@@ -1,22 +1,34 @@
-//! Document and chunk ingestion into `HybridIndex` (`#1221`).
+//! Document and chunk ingestion into `HybridIndex` (`#1221`, `#2609`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use turbo::TURBO_PROMPT_DOCUMENT;
 use turbo_analysis::export::{DocumentGraph, import};
 use turbo_analysis::{Document, Layer, Span, ViewId};
 use turbo_analysis_layers::LayoutBoxes;
 use turbo_vector_index::{IndexBuilder, Normalization, Space, TokenIndexBuilder};
 
 use crate::api::Result;
-use crate::proto::search::{ChunkInput, IndexDocumentRequest, LayoutBoxInput, VectorStorageKind};
+use crate::deadline::Deadline;
+use crate::priority::Priority;
+use crate::proto::search::{ChunkInput, IndexDocumentRequest, IndexSpec, LayoutBoxInput, VectorStorageKind};
 use crate::results::document::codecs;
 use crate::results::{MAX_GRAPH_BYTES, over};
 use crate::search::registry::{
-    CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, bad_state, io_err,
-    verify_embed_bundle_matches_space,
+    CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, bad_state, verify_embed_bundle_matches_space,
 };
 use crate::search::segment::{apply_layout_boxes_to_chunks, extract_chunks_from_doc, segment_raw_text};
-use crate::state::State;
+use crate::state::{Loaded, Slot, State};
+use crate::tasks::embed::exec::{embed_f32_batches, prompt_embed_options};
+
+pub(crate) struct PreparedDocument {
+    pub doc_id: String,
+    pub doc_text: String,
+    pub graph: Vec<u8>,
+    pub raw_chunks: Vec<ChunkInput>,
+    pub prepared_chunks: Vec<ChunkInput>,
+    pub doc_attrs: BTreeMap<String, String>,
+}
 
 pub(crate) struct StagedDocument {
     pub retained: RetainedDocument,
@@ -24,9 +36,9 @@ pub(crate) struct StagedDocument {
     pub chunk_terms: Vec<Vec<String>>,
 }
 
-pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocumentRequest) -> Result<StagedDocument> {
-    if ix.sealed {
-        return Err(bad_state(format!("search index `{}` is sealed and accepts no writes", ix.spec.index_name)));
+pub(crate) fn prepare_document(spec: &IndexSpec, sealed: bool, req: IndexDocumentRequest) -> Result<PreparedDocument> {
+    if sealed {
+        return Err(bad_state(format!("search index `{}` is sealed and accepts no writes", spec.index_name)));
     }
     if req.doc_id.is_empty() {
         return Err(bad_arg("doc_id must not be empty"));
@@ -53,11 +65,11 @@ pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocument
     let raw_chunks = req.chunks.clone();
     let doc_attrs: BTreeMap<String, String> = req.attributes.clone().into_iter().collect();
     let mut prepared_chunks: Vec<ChunkInput> = if !req.chunks.is_empty() {
-        req.chunks.clone()
+        req.chunks
     } else if let Some(d) = &imported_doc {
-        extract_chunks_from_doc(d, &req.doc_id, ix.spec.chunk_budget_tokens)?
+        extract_chunks_from_doc(d, &req.doc_id, spec.chunk_budget_tokens)?
     } else {
-        segment_raw_text(&doc_text, &req.doc_id, ix.spec.chunk_budget_tokens)
+        segment_raw_text(&doc_text, &req.doc_id, spec.chunk_budget_tokens)
     };
 
     for (ci, c) in prepared_chunks.iter().enumerate() {
@@ -76,20 +88,56 @@ pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocument
         apply_layout_boxes_to_chunks(Some(d), ViewId::SOURCE, layout, &mut prepared_chunks);
     }
 
-    if !ix.spec.embed_bundle.is_empty() {
-        populate_embeddings_from_bundle(state, &ix.spec.embed_bundle, &ix.space, &doc_text, &mut prepared_chunks)?;
+    Ok(PreparedDocument { doc_id: req.doc_id, doc_text, graph: req.graph, raw_chunks, prepared_chunks, doc_attrs })
+}
+
+pub(crate) fn embed_prepared_documents(
+    state: &State,
+    loaded: &Loaded,
+    slot: &Slot,
+    space: &Space,
+    docs: &mut [PreparedDocument],
+    deadline: &Deadline,
+) -> Result<()> {
+    let mut targets: Vec<(usize, usize)> = Vec::new();
+    let mut slices: Vec<String> = Vec::new();
+    for (di, d) in docs.iter().enumerate() {
+        for (ci, c) in d.prepared_chunks.iter().enumerate() {
+            if c.dense_vector.is_empty() {
+                let slice = d
+                    .doc_text
+                    .get(c.span_start as usize..c.span_end as usize)
+                    .ok_or_else(|| bad_arg(format!("chunk span {}..{} is out of bounds", c.span_start, c.span_end)))?;
+                targets.push((di, ci));
+                slices.push(slice.to_owned());
+            }
+        }
     }
+    if slices.is_empty() {
+        return Ok(());
+    }
+    let unit = matches!(space.normalization, Normalization::Unit);
+    let opts = prompt_embed_options(TURBO_PROMPT_DOCUMENT, unit, loaded.model_info.dim, space.dim);
+    let _docs = loaded.metrics.track_docs(slices.len(), Some(loaded.device));
+    let vectors = embed_f32_batches(state, loaded, slot, &slices, &opts, deadline)?;
+    for ((di, ci), vec) in targets.into_iter().zip(vectors) {
+        docs[di].prepared_chunks[ci].dense_vector = vec;
+    }
+    Ok(())
+}
 
-    let dim = ix.space.dim as usize;
-    let mut staged_chunks = Vec::with_capacity(prepared_chunks.len());
-    let mut chunk_terms = Vec::with_capacity(prepared_chunks.len());
+pub(crate) fn finalize_prepared_document(space: &Space, doc: PreparedDocument) -> Result<StagedDocument> {
+    let dim = space.dim as usize;
+    let mut staged_chunks = Vec::with_capacity(doc.prepared_chunks.len());
+    let mut chunk_terms = Vec::with_capacity(doc.prepared_chunks.len());
 
-    for (ci, c) in prepared_chunks.iter().enumerate() {
-        let chunk_slice = doc_text
+    for (ci, c) in doc.prepared_chunks.iter().enumerate() {
+        let chunk_slice = doc
+            .doc_text
             .get(c.span_start as usize..c.span_end as usize)
             .ok_or_else(|| bad_arg(format!("chunk {ci} span {}..{} is invalid", c.span_start, c.span_end)))?;
         let (parent_span, parent_text) = if c.has_parent {
-            let ps_slice = doc_text.get(c.parent_start as usize..c.parent_end as usize).ok_or_else(|| {
+            let ps_slice = doc.doc_text.get(c.parent_start as usize..c.parent_end as usize).ok_or_else(|| {
                 bad_arg(format!("chunk {ci} parent_span {}..{} is invalid", c.parent_start, c.parent_end))
             })?;
             (Some(Span::new(c.parent_start, c.parent_end)), ps_slice.to_owned())
@@ -126,16 +174,16 @@ pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocument
 
         let terms = analyze_chunk_terms(chunk_slice, c.span_start);
         chunk_terms.push(terms.iter().map(|(t, _)| t.clone()).collect());
-        let mut attrs = doc_attrs.clone();
+        let mut attrs = doc.doc_attrs.clone();
         for (k, v) in &c.attributes {
             attrs.insert(k.clone(), v.clone());
         }
-        let chunk_id = if c.chunk_id.is_empty() { format!("{}#{}", req.doc_id, ci) } else { c.chunk_id.clone() };
+        let chunk_id = if c.chunk_id.is_empty() { format!("{}#{}", doc.doc_id, ci) } else { c.chunk_id.clone() };
         let level_kind = if c.level_kind.is_empty() { "chunk".to_owned() } else { c.level_kind.clone() };
         let page_span = validate_chunk_layout(ci, c)?;
         staged_chunks.push(StoredChunk {
             chunk_id,
-            doc_id: req.doc_id.clone(),
+            doc_id: doc.doc_id.clone(),
             level_kind,
             span: Span::new(c.span_start, c.span_end),
             parent_span,
@@ -153,16 +201,30 @@ pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocument
 
     Ok(StagedDocument {
         retained: RetainedDocument {
-            doc_id: req.doc_id,
-            text: doc_text,
-            graph: req.graph,
-            raw_chunks,
-            chunks: prepared_chunks,
-            attributes: doc_attrs,
+            doc_id: doc.doc_id,
+            text: doc.doc_text,
+            graph: doc.graph,
+            raw_chunks: doc.raw_chunks,
+            chunks: doc.prepared_chunks,
+            attributes: doc.doc_attrs,
         },
         chunks: staged_chunks,
         chunk_terms,
     })
+}
+
+pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocumentRequest) -> Result<StagedDocument> {
+    let mut docs = [prepare_document(&ix.spec, ix.sealed, req)?];
+    if !ix.spec.embed_bundle.is_empty() && !docs[0].prepared_chunks.is_empty() {
+        let loaded = verify_embed_bundle_matches_space(state, &ix.spec.embed_bundle, &ix.space)?;
+        if docs[0].prepared_chunks.iter().any(|c| c.dense_vector.is_empty()) {
+            let deadline = Deadline::none();
+            let held = tokio::runtime::Handle::current().block_on(loaded.acquire_async(Priority::Bulk, &deadline))?;
+            embed_prepared_documents(state, &loaded, held.slot(), &ix.space, &mut docs, &deadline)?;
+        }
+    }
+    let [doc] = docs;
+    finalize_prepared_document(&ix.space, doc)
 }
 
 pub(crate) fn commit_staged_documents(
@@ -313,73 +375,4 @@ pub fn analyze_chunk_terms(chunk_text: &str, chunk_offset: u32) -> Vec<(String, 
         out.push((stemmed, Span::new(chunk_offset + s, chunk_offset + e)));
     }
     out
-}
-
-pub(crate) fn populate_embeddings_from_bundle(
-    state: &State,
-    bundle_name: &str,
-    space: &Space,
-    doc_text: &str,
-    chunks: &mut [ChunkInput],
-) -> Result<()> {
-    if chunks.is_empty() {
-        return Ok(());
-    }
-    let loaded = verify_embed_bundle_matches_space(state, bundle_name, space)?;
-    let held = loaded.take()?;
-    let slot = held.slot();
-    let max_batch = slot.info.max_batch as usize;
-    let output_dim = if space.dim != loaded.model_info.dim { space.dim } else { 0 };
-    let normalize = match space.normalization {
-        Normalization::Unit => turbo::TURBO_NORMALIZE_L2,
-        Normalization::None => turbo::TURBO_NORMALIZE_NONE,
-    };
-    let opts = turbo::turbo_embed_options {
-        struct_size: size_of::<turbo::turbo_embed_options>() as u32,
-        truncate: 0,
-        max_tokens: 0,
-        prompt_role: turbo::TURBO_PROMPT_DOCUMENT,
-        normalize,
-        pooling: 0,
-        output_dim,
-        quantization: 0,
-        int8_ranges: std::ptr::null(),
-        layers: 0,
-        layer_alone: 0,
-    };
-    for batch in chunks.chunks_mut(max_batch.max(1)) {
-        let mut need_indices = Vec::new();
-        let mut views = Vec::new();
-        for (i, c) in batch.iter().enumerate() {
-            if c.dense_vector.is_empty() {
-                let slice = doc_text
-                    .get(c.span_start as usize..c.span_end as usize)
-                    .ok_or_else(|| bad_arg(format!("chunk span {}..{} is out of bounds", c.span_start, c.span_end)))?;
-                views.push(turbo::turbo_text { ptr: slice.as_ptr().cast(), len: slice.len() as u64 });
-                need_indices.push(i);
-            }
-        }
-        if views.is_empty() {
-            continue;
-        }
-        slot.session.write_text(&views, &opts)?;
-        let res = slot.session.run()?;
-        let info = res.info()?;
-        let bytes = res.read(info.bytes)?;
-        let dim = info.dim as usize;
-        let expected_bytes = need_indices.len().saturating_mul(dim).saturating_mul(4);
-        if bytes.len() < expected_bytes {
-            return Err(io_err(format!(
-                "embedding session returned {} bytes, expected at least {expected_bytes}",
-                bytes.len()
-            )));
-        }
-        for (bi, &ci) in need_indices.iter().enumerate() {
-            let offset = bi * dim * 4;
-            let floats: Vec<f32> =
-                bytes[offset..offset + dim * 4].as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
-            batch[ci].dense_vector = floats;
-        }
-    }
-    Ok(())
 }

@@ -217,9 +217,9 @@ to `top_k` hits (default 10 when 0, at most `MAX_TOP_K` = 10,000):
   applied.
 - `rerank_bundle`: when non-empty, cross-encodes the top candidates
   against `natural_query` (or the first non-empty `SemanticClause.query_text`
-  in `query_ast`) using the named `TURBO_TASK_RERANK` bundle, replaces
-  candidate scores with the reranker logits, and appends a `"rerank"`
-  `MatchedSpan`.
+  in `query_ast`) using the named `TURBO_TASK_RERANK` bundle across
+  `max_batch`-sized batches, replaces candidate scores with the reranker
+  logits, and appends a `"rerank"` `MatchedSpan`.
 - `parent_expansion`: when `enabled` is true, populates `SearchHit.parent_text`
   for chunks with a parent span whose whitespace word count is within
   `max_parent_tokens` (0 allows any length).
@@ -308,11 +308,13 @@ the gRPC trailing metadata (docs/kserve.md, Errors).
 | `IndexDocuments` | Target index/alias does not exist, or the index's `embed_bundle` is not loaded | `NOT_FOUND` | `1280` (`TURBO_E_BUNDLE_NOT_FOUND`) |
 | `IndexDocuments` | Target index is sealed (`SealIndex`) | `FAILED_PRECONDITION` | `261` (`TURBO_E_INVALID_STATE`) |
 | `IndexDocuments` | `graph` exceeds `max_graph_bytes` (64 MiB), or a chunk exceeds the `embed_bundle` session's `max_seq` | `OUT_OF_RANGE` | `771` (`TURBO_E_CAPACITY`) |
-| `IndexDocuments` | All sessions of `embed_bundle` are busy | `UNAVAILABLE` | `770` (`TURBO_E_BUSY`) |
+| `IndexDocuments` | Session priority queue of `embed_bundle` reached `MAX_QUEUE_DEPTH` | `UNAVAILABLE` | `770` (`TURBO_E_BUSY`) |
+| `IndexDocuments` | `grpc-timeout` expired before or while acquiring or executing `embed_bundle` | `DEADLINE_EXCEEDED` | (none) |
 | `IndexDocuments` | Frame or stream exceeds `--max-message-bytes` or `--max-stream-bytes` | `RESOURCE_EXHAUSTED` | (none) |
 | `Search` | Empty `index_name`, `top_k > 10_000`, `PhraseClause` over 64 terms, missing `QueryNode.clause`, unknown enum value, negative/non-finite `boost`, missing `BoostClause.child`, `query_vector` without `query_space` or with mismatched `SpaceSpec`/dimension/non-finite values, invalid `SemanticClause` or `LateInteractionClause`, or `rerank_bundle` without query text or naming a non-`TASK_RERANK` bundle | `INVALID_ARGUMENT` | `256` (`TURBO_E_INVALID_ARGUMENT`) |
 | `Search` | Target index/alias, `embed_bundle`, or `rerank_bundle` does not exist | `NOT_FOUND` | `1280` (`TURBO_E_BUNDLE_NOT_FOUND`) |
-| `Search` | All sessions of `embed_bundle` or `rerank_bundle` are busy | `UNAVAILABLE` | `770` (`TURBO_E_BUSY`) |
+| `Search` | Session priority queue of `embed_bundle` or `rerank_bundle` reached `MAX_QUEUE_DEPTH` | `UNAVAILABLE` | `770` (`TURBO_E_BUSY`) |
+| `Search` | `grpc-timeout` expired before or while acquiring or executing `embed_bundle` or `rerank_bundle` | `DEADLINE_EXCEEDED` | (none) |
 | `PersistIndex` | Server was started without `--admin` | `UNIMPLEMENTED` | `512` (`TURBO_E_UNSUPPORTED`) |
 | `PersistIndex` | `index_name` is empty, or `path` is empty or contains path separators/traversal | `INVALID_ARGUMENT` | `256` (`TURBO_E_INVALID_ARGUMENT`) |
 | `PersistIndex` | Target index/alias does not exist | `NOT_FOUND` | `1280` (`TURBO_E_BUNDLE_NOT_FOUND`) |

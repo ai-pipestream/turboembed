@@ -8,7 +8,8 @@ use turbo::head::ProjectionHead;
 use turbo::mlm::MlmHead;
 use turbo::sparse::{MaxLogPool, SparseTerm};
 use turbo::{
-    TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, TURBO_TASK_EMBED, turbo_embed_options, turbo_token_range,
+    TURBO_DTYPE_F32, TURBO_NORMALIZE_L2, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, TURBO_TASK_EMBED,
+    turbo_embed_options, turbo_text, turbo_token_range,
 };
 use turbo_analysis::{Ix, Span, View};
 use turbo_analysis_embed::window::Placed;
@@ -18,8 +19,12 @@ use turbo_analysis_layers::{SparseTerms, Subwords};
 use crate::api::{
     Failure, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED, TURBO_E_UNSUPPORTED_OPTION,
 };
-use crate::state::{Held, Loaded, Slot};
+use crate::deadline::Deadline;
+use crate::priority::check_before_exec;
+use crate::results::f32s;
+use crate::state::{Held, Loaded, Slot, State};
 use crate::stream::Shared;
+use crate::stream::run::read_output;
 
 impl Loaded {
     /// Lazily loads the companion tokenizer and optional MLM / projection heads
@@ -225,4 +230,72 @@ pub(crate) fn run_ranges_on_slot(
         out.push(f32::from_le_bytes(*chunk));
     }
     Ok(())
+}
+
+/// Builds `turbo_embed_options` for query or document embedding into a target
+/// vector space (`#2609`).
+pub(crate) fn prompt_embed_options(
+    prompt_role: u32,
+    unit: bool,
+    model_dim: u32,
+    target_dim: u32,
+) -> turbo_embed_options {
+    turbo_embed_options {
+        struct_size: size_of::<turbo_embed_options>() as u32,
+        truncate: 0,
+        max_tokens: 0,
+        prompt_role,
+        normalize: if unit { TURBO_NORMALIZE_L2 } else { TURBO_NORMALIZE_NONE },
+        pooling: 0,
+        output_dim: if target_dim != model_dim { target_dim } else { 0 },
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
+        layers: 0,
+        layer_alone: 0,
+    }
+}
+
+/// Embeds `texts` across `max_batch`-sized chunks on `slot`, checking `deadline`
+/// before each write and run and returning one `f32` vector per input row.
+pub(crate) fn embed_f32_batches<S: AsRef<str>>(
+    state: &State,
+    loaded: &Loaded,
+    slot: &Slot,
+    texts: &[S],
+    opts: &turbo_embed_options,
+    deadline: &Deadline,
+) -> Result<Vec<Vec<f32>>> {
+    if texts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let max_batch = (slot.info.max_batch as usize).max(1);
+    let mut out = Vec::with_capacity(texts.len());
+    for batch in texts.chunks(max_batch) {
+        check_before_exec(deadline, &loaded.metrics)?;
+        let views: Vec<turbo_text> = batch
+            .iter()
+            .map(|t| {
+                let s = t.as_ref();
+                turbo_text { ptr: s.as_ptr().cast(), len: s.len() as u64 }
+            })
+            .collect();
+        slot.session.write_text(&views, opts)?;
+        check_before_exec(deadline, &loaded.metrics)?;
+        loaded.metrics.record_batch_size(views.len());
+        state.stream.runs.fetch_add(1, Ordering::Relaxed);
+        let result = slot.session.run()?;
+        let (dim, dtype, bytes) = read_output(&result, views.len())?;
+        drop(result);
+        let dim = dim as usize;
+        if dtype != TURBO_DTYPE_F32 || dim == 0 || bytes.len() != views.len() * dim * 4 {
+            return Err(Failure::new(
+                TURBO_E_INTERNAL,
+                0,
+                format!("unexpected embed output shape: dim={dim}, dtype={dtype}, bytes={}", bytes.len()),
+            ));
+        }
+        let flat = f32s(&bytes);
+        out.extend(flat.chunks_exact(dim).map(<[f32]>::to_vec));
+    }
+    Ok(out)
 }

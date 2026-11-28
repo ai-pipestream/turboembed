@@ -4,24 +4,21 @@
 //! the whole document, and `StrategyMatrixProto` chunking comparisons.
 
 use turbo_analysis::export::{DocumentGraph, import};
-use turbo_analysis::{Annotator, Document, Ix, IxRange, Layer, Span, Spans, ViewId};
-use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Structure, Subwords, Tokens, Vectors};
-use turbo_chunker::compare::{Pricing, Run, compare};
-use turbo_chunker::{
-    Budget, Chunker, ClauseCuts, Costs, Drift, Rows, StructureBoundaries, cosines as gap_cosines,
-    drift as compute_drift,
-};
+use turbo_analysis::{Document, Ix, Layer, Span, ViewId};
+use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Subwords, Tokens, Vectors};
+use turbo_chunker::{Drift, Rows, cosines as gap_cosines, drift as compute_drift};
 
 use super::bindings::require_default_binding;
 use super::pairwise::pairwise;
 use super::pca::{compute_pca, validate_finite_vectors};
-use super::query::{Embed, wanted_query};
+use super::query::{Embedded, QuerySpace, check_query_field, space_for_vectors};
 use super::stacks::build_term_stacks;
+use super::strategy::build_strategy_matrix;
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
-    BoundaryDriftCurveProto, BudgetSpec, DriftGapPointProto, ProjectChunksRequest, ProjectChunksResponse,
-    QueryPointProto, StrategyComparisonEntryProto, StrategyMatrixProto, VectorProjectionProto,
+    BoundaryDriftCurveProto, DriftGapPointProto, ProjectChunksRequest, ProjectChunksResponse, QueryPointProto,
+    VectorProjectionProto,
 };
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy};
 use crate::results::document::codecs;
@@ -37,29 +34,20 @@ fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
 
-/// Executes `ProjectChunks` on a binary [`DocumentGraph`], under
-/// [`PiiOutputPolicy::ALL`].
-pub fn project_chunks(req: &ProjectChunksRequest) -> Result<ProjectChunksResponse, Failure> {
-    project_chunks_under(req, PiiOutputPolicy::ALL)
+pub(super) struct PreparedProject {
+    pub doc: Document,
+    pub view: ViewId,
+    pub offset_mode: OffsetMode,
+    pub pca_dims: u32,
+    pub max_stack_segments: u32,
+    pub disclosure: Disclosure,
 }
 
-/// [`project_chunks`] under the server's `policy`: previews and term
-/// stacks carry the projected view's words, so a document holding PII
-/// needs that view's text disclosed (#1904).
-pub fn project_chunks_under(
+pub(super) fn prepare_project(
     req: &ProjectChunksRequest,
     policy: PiiOutputPolicy,
-) -> Result<ProjectChunksResponse, Failure> {
-    project_chunks_with(req, policy, None)
-}
-
-/// [`project_chunks_under`] with the server's way to embed a query text
-/// (#2249). Without one, a request carrying `query` is refused.
-pub(crate) fn project_chunks_with(
-    req: &ProjectChunksRequest,
-    policy: PiiOutputPolicy,
-    embed: Option<&Embed<'_>>,
-) -> Result<ProjectChunksResponse, Failure> {
+    has_embed_runtime: bool,
+) -> Result<PreparedProject, Failure> {
     let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
@@ -80,29 +68,73 @@ pub(crate) fn project_chunks_with(
     if max_stack_segments as u64 > MAX_SPARSE_ENTRIES {
         return Err(over("max_sparse_entries", "max_stack_segments", max_stack_segments as u64));
     }
-
-    let query = wanted_query(req, embed)?;
+    check_query_field(req, has_embed_runtime)?;
 
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-
     let view = active_view(&doc)?;
     disclosure.require_view_text(&doc, view, "project_chunks")?;
-    let text = doc.text(view);
-    let offsetter = Offsetter::new(text, offset_mode);
 
-    let (projection, query) = build_projection(&doc, text, &offsetter, pca_dims, query)?;
-    let drift_curve = if req.include_drift_curve { build_drift_curve(&doc, text, &offsetter)? } else { None };
-    let (chunk_term_stacks, document_term_stack) =
-        build_term_stacks(&doc, view, text, &offsetter, max_stack_segments as usize, disclosure.graph(&doc))?;
+    Ok(PreparedProject { doc, view, offset_mode, pca_dims, max_stack_segments, disclosure })
+}
+
+fn check_vector_target<'a, L: Layer>(
+    doc: &'a Document,
+    vecs: &'a Vectors<L>,
+    spans_len: Option<usize>,
+    what: &str,
+) -> Result<usize, Failure> {
+    require_default_binding::<Vectors<L>, L>(doc)?;
+    let n = spans_len.ok_or_else(|| bad(format!("document has turbo:vectors<turbo:{what}> without turbo:{what}")))?;
+    if n as u64 > MAX_CHUNKS {
+        return Err(over("max_chunks", what, n as u64));
+    }
+    if vecs.len() != n {
+        return Err(bad(format!(
+            "turbo:vectors<turbo:{what}> length {} does not match turbo:{what} length {n}",
+            vecs.len()
+        )));
+    }
+    Ok(n)
+}
+
+pub(super) fn inspect_query_space(doc: &Document) -> Result<QuerySpace, Failure> {
+    if let Some(vecs) = doc.get::<Vectors<Chunks>>() {
+        let n = check_vector_target(doc, vecs, doc.get::<Chunks>().map(|c| c.spans.len()), "chunks")?;
+        return space_for_vectors(vecs, n);
+    }
+    if let Some(vecs) = doc.get::<Vectors<Sentences>>() {
+        let n = check_vector_target(doc, vecs, doc.get::<Sentences>().map(|s| s.spans.len()), "sentences")?;
+        return space_for_vectors(vecs, n);
+    }
+    Err(bad("query: the document graph carries no chunk or sentence vectors to place a query among"))
+}
+
+pub(super) fn finish_project(
+    prep: PreparedProject,
+    req: &ProjectChunksRequest,
+    query: Option<&Embedded>,
+) -> Result<ProjectChunksResponse, Failure> {
+    let text = prep.doc.text(prep.view);
+    let offsetter = Offsetter::new(text, prep.offset_mode);
+
+    let (projection, query) = build_projection(&prep.doc, text, &offsetter, prep.pca_dims, query)?;
+    let drift_curve = if req.include_drift_curve { build_drift_curve(&prep.doc, text, &offsetter)? } else { None };
+    let (chunk_term_stacks, document_term_stack) = build_term_stacks(
+        &prep.doc,
+        prep.view,
+        text,
+        &offsetter,
+        prep.max_stack_segments as usize,
+        prep.disclosure.graph(&prep.doc),
+    )?;
     let strategy_matrix = if req.include_strategy_matrix {
-        build_strategy_matrix(&doc, text, &offsetter, &req.strategy_budgets)?
+        build_strategy_matrix(&prep.doc, text, &offsetter, &req.strategy_budgets)?
     } else {
         None
     };
-
     let pairwise = match &req.pairwise {
-        Some(spec) => Some(pairwise(&doc, spec, &projection.points)?),
+        Some(spec) => Some(pairwise(&prep.doc, spec, &projection.points)?),
         None => None,
     };
 
@@ -115,6 +147,23 @@ pub(crate) fn project_chunks_with(
         document_term_stack,
         strategy_matrix,
     })
+}
+
+/// Executes `ProjectChunks` on a binary [`DocumentGraph`], under
+/// [`PiiOutputPolicy::ALL`].
+pub fn project_chunks(req: &ProjectChunksRequest) -> Result<ProjectChunksResponse, Failure> {
+    project_chunks_under(req, PiiOutputPolicy::ALL)
+}
+
+/// [`project_chunks`] under the server's `policy`: previews and term
+/// stacks carry the projected view's words, so a document holding PII
+/// needs that view's text disclosed (#1904).
+pub fn project_chunks_under(
+    req: &ProjectChunksRequest,
+    policy: PiiOutputPolicy,
+) -> Result<ProjectChunksResponse, Failure> {
+    let prep = prepare_project(req, policy, false)?;
+    finish_project(prep, req, None)
 }
 
 fn active_view(doc: &Document) -> Result<ViewId, Failure> {
@@ -162,41 +211,20 @@ fn build_projection(
     text: &str,
     offsetter: &Offsetter,
     pca_dims: u32,
-    query: Option<(&str, &Embed<'_>)>,
+    query: Option<&Embedded>,
 ) -> Result<(VectorProjectionProto, Option<QueryPointProto>), Failure> {
     if let Some(vecs) = doc.get::<Vectors<Chunks>>() {
-        require_default_binding::<Vectors<Chunks>, Chunks>(doc)?;
-        let chunks =
-            doc.get::<Chunks>().ok_or_else(|| bad("document has turbo:vectors<turbo:chunks> without turbo:chunks"))?;
-        if chunks.spans.len() as u64 > MAX_CHUNKS {
-            return Err(over("max_chunks", "chunks", chunks.spans.len() as u64));
-        }
-        if vecs.len() != chunks.spans.len() {
-            return Err(bad(format!(
-                "turbo:vectors<turbo:chunks> length {} does not match turbo:chunks length {}",
-                vecs.len(),
-                chunks.spans.len()
-            )));
-        }
-        let spans: Vec<Span> = (0..chunks.spans.len()).map(|i| chunks.spans.get(Ix::new(i as u32))).collect();
+        let chunks = doc.get::<Chunks>();
+        let n = check_vector_target(doc, vecs, chunks.map(|c| c.spans.len()), "chunks")?;
+        let chunks = chunks.expect("checked Some");
+        let spans: Vec<Span> = (0..n).map(|i| chunks.spans.get(Ix::new(i as u32))).collect();
         return compute_pca(vecs, &spans, &chunks.level, text, offsetter, pca_dims, query);
     }
     if let Some(vecs) = doc.get::<Vectors<Sentences>>() {
-        require_default_binding::<Vectors<Sentences>, Sentences>(doc)?;
-        let sentences = doc
-            .get::<Sentences>()
-            .ok_or_else(|| bad("document has turbo:vectors<turbo:sentences> without turbo:sentences"))?;
-        if sentences.spans.len() as u64 > MAX_CHUNKS {
-            return Err(over("max_chunks", "sentences", sentences.spans.len() as u64));
-        }
-        if vecs.len() != sentences.spans.len() {
-            return Err(bad(format!(
-                "turbo:vectors<turbo:sentences> length {} does not match turbo:sentences length {}",
-                vecs.len(),
-                sentences.spans.len()
-            )));
-        }
-        let spans: Vec<Span> = (0..sentences.spans.len()).map(|i| sentences.spans.get(Ix::new(i as u32))).collect();
+        let sents = doc.get::<Sentences>();
+        let n = check_vector_target(doc, vecs, sents.map(|s| s.spans.len()), "sentences")?;
+        let sents = sents.expect("checked Some");
+        let spans: Vec<Span> = (0..n).map(|i| sents.spans.get(Ix::new(i as u32))).collect();
         let levels = vec![0u8; spans.len()];
         return compute_pca(vecs, &spans, &levels, text, offsetter, pca_dims, query);
     }
@@ -327,162 +355,4 @@ fn smooth_and_depth(raw_opt: &[Option<i64>], smoothing: usize) -> (Vec<Option<i6
         depth_out[g] = left[k] + right[k] - 2 * sm[k];
     }
     (sm_out, depth_out)
-}
-
-fn greedy_sentence_chunks(sentences: &Sentences, subwords: &Subwords, budget: Budget) -> Chunks {
-    let view = sentences.spans.view();
-    let n = sentences.spans.len();
-    let (sub_starts, sub_ends) = subwords.spans.columns();
-    let mut spans = Spans::<Chunks>::new(view);
-    let mut sent_ranges = Vec::new();
-    let mut cuts = Vec::new();
-    let mut costs = Vec::new();
-    let mut model_tokens = Vec::new();
-    let mut over_budget = Vec::new();
-
-    if n > 0 {
-        let mut cur_start = 0usize;
-        let mut cur_tokens = budget.overhead;
-        for i in 0..n {
-            let sp = sentences.spans.get(Ix::new(i as u32));
-            let s_sub = sub_ends.partition_point(|&e| e <= sp.start);
-            let e_sub = sub_starts.partition_point(|&s| s < sp.end).max(s_sub);
-            let tok_count = (e_sub - s_sub) as u32;
-            if i > cur_start && cur_tokens.saturating_add(tok_count) > budget.max {
-                let first = sentences.spans.get(Ix::new(cur_start as u32));
-                let last = sentences.spans.get(Ix::new((i - 1) as u32));
-                spans.push(Span::new(first.start, last.end));
-                sent_ranges.push(IxRange::new(cur_start as u32, i as u32));
-                cuts.push(if cur_start == 0 { Cut::DocumentStart } else { Cut::Sentence });
-                costs.push(0);
-                model_tokens.push(cur_tokens);
-                over_budget.push(cur_tokens > budget.max);
-                cur_start = i;
-                cur_tokens = budget.overhead.saturating_add(tok_count);
-            } else {
-                cur_tokens = cur_tokens.saturating_add(tok_count);
-            }
-        }
-        let first = sentences.spans.get(Ix::new(cur_start as u32));
-        let last = sentences.spans.get(Ix::new((n - 1) as u32));
-        spans.push(Span::new(first.start, last.end));
-        sent_ranges.push(IxRange::new(cur_start as u32, n as u32));
-        cuts.push(if cur_start == 0 { Cut::DocumentStart } else { Cut::Sentence });
-        costs.push(0);
-        model_tokens.push(cur_tokens);
-        over_budget.push(cur_tokens > budget.max);
-    }
-
-    let len = spans.len();
-    Chunks {
-        spans,
-        level: vec![0; len],
-        parent: vec![None; len],
-        sentences: sent_ranges,
-        cut: cuts,
-        cost: costs,
-        model_tokens,
-        over_budget,
-        prompt_overhead: budget.overhead,
-    }
-}
-
-fn build_strategy_matrix(
-    doc: &Document,
-    text: &str,
-    offsetter: &Offsetter,
-    requested: &[BudgetSpec],
-) -> Result<Option<StrategyMatrixProto>, Failure> {
-    let (Some(sentences), Some(subwords), Some(bounds)) =
-        (doc.get::<Sentences>(), doc.get::<Subwords>(), doc.get::<Boundaries>())
-    else {
-        return Ok(None);
-    };
-    require_default_binding::<Boundaries, Sentences>(doc)?;
-    require_default_binding::<ClauseCuts, Sentences>(doc)?;
-    require_default_binding::<Chunks, Sentences>(doc)?;
-    let structure = doc.get::<Structure>();
-    let clauses = doc.get::<ClauseCuts>();
-
-    let mut runs: Vec<(BudgetSpec, Budget, Chunks)> = Vec::new();
-    if requested.is_empty() {
-        let base_spec = BudgetSpec {
-            name: "semantic_dp".into(),
-            max_tokens: 256,
-            target_tokens: 192,
-            size_weight: 1000,
-            overhead: 2,
-        };
-        let b = Budget { max: 256, target: 192, size_weight: 1000, overhead: 2 };
-        let greedy = greedy_sentence_chunks(sentences, subwords, b);
-        runs.push((BudgetSpec { name: "greedy_sentences".into(), ..base_spec.clone() }, b, greedy));
-
-        let struct_bounds = StructureBoundaries { costs: Costs::default() }
-            .annotate((sentences, structure))
-            .map_err(|e| bad(format!("structure_only boundaries: {e}")))?
-            .0;
-        let struct_chunks = Chunker { budget: b }
-            .annotate((sentences, subwords, &struct_bounds, structure, None, None))
-            .map_err(|e| bad(format!("structure_only chunker: {e}")))?
-            .0;
-        runs.push((BudgetSpec { name: "structure_only".into(), ..base_spec.clone() }, b, struct_chunks));
-
-        let sem_chunks = Chunker { budget: b }
-            .annotate((sentences, subwords, bounds, structure, clauses, None))
-            .map_err(|e| bad(format!("semantic_dp chunker: {e}")))?
-            .0;
-        runs.push((base_spec, b, sem_chunks));
-    } else {
-        for (idx, spec) in requested.iter().cloned().enumerate() {
-            if spec.max_tokens == 0 {
-                return Err(bad(format!("strategy_budgets[{idx}].max_tokens must be > 0")));
-            }
-            let b = Budget {
-                max: spec.max_tokens,
-                target: if spec.target_tokens == 0 { spec.max_tokens } else { spec.target_tokens },
-                size_weight: spec.size_weight,
-                overhead: spec.overhead,
-            };
-            let chunks = Chunker { budget: b }
-                .annotate((sentences, subwords, bounds, structure, clauses, None))
-                .map_err(|e| bad(format!("strategy_budgets[{idx}] chunker: {e}")))?
-                .0;
-            runs.push((spec, b, chunks));
-        }
-    }
-
-    let baseline_chunks = doc.get::<Chunks>().or_else(|| runs.last().map(|(_, _, c)| c));
-    let mut entries = Vec::with_capacity(runs.len());
-    for (spec, b, chunks) in &runs {
-        let (matched, disagreements) = if let Some(base) = baseline_chunks {
-            let run_a = Run {
-                chunks: base,
-                execution: None,
-                pricing: Some(Pricing { sentences, boundaries: bounds, budget: *b }),
-            };
-            let run_b =
-                Run { chunks, execution: None, pricing: Some(Pricing { sentences, boundaries: bounds, budget: *b }) };
-            let rep = compare(run_a, run_b).map_err(|e| bad(format!("strategy compare: {e}")))?;
-            (rep.matched as u32, rep.disagreements.len() as u32)
-        } else {
-            (0, 0)
-        };
-        let over_budget_count = chunks.over_budget.iter().filter(|&&ob| ob).count() as u32;
-        let total_cost: i64 = chunks.cost.iter().copied().fold(0i64, i64::saturating_add);
-        let starts_bytes: Vec<u32> =
-            (0..chunks.spans.len()).map(|i| chunks.spans.get(Ix::new(i as u32)).start).collect();
-        let cut_starts = offsetter.column_to_wire(text, &starts_bytes);
-        entries.push(StrategyComparisonEntryProto {
-            name: if spec.name.is_empty() { format!("max_{}", spec.max_tokens) } else { spec.name.clone() },
-            budget: Some(spec.clone()),
-            chunk_count: chunks.spans.len() as u32,
-            over_budget_count,
-            total_cost,
-            matched_cuts_with_baseline: matched,
-            disagreements_with_baseline: disagreements,
-            cut_starts,
-        });
-    }
-
-    Ok(Some(StrategyMatrixProto { strategies: entries }))
 }

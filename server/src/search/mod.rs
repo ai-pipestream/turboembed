@@ -2,6 +2,7 @@
 //! over gRPC (`TurboSearchService`, issue `#1221`).
 
 pub mod clauses;
+pub(crate) mod exec;
 pub mod ingest;
 pub mod query;
 pub mod registry;

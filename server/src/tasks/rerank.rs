@@ -2,10 +2,12 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use bytes::Bytes;
 use turbo::{
-    TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_rerank_options, turbo_text, turbo_text_pair,
+    TURBO_DTYPE_F32, TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_rerank_options, turbo_text,
+    turbo_text_pair,
 };
 
 use crate::api::{Failure, Result, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
@@ -16,8 +18,10 @@ use crate::priority::{Held, check_before_exec};
 use crate::proto::infer_parameter::ParameterChoice;
 use crate::proto::model_infer_response::InferOutputTensor;
 use crate::proto::{InferParameter, ModelInferRequest, ModelInferResponse};
-use crate::state::{Loaded, Served};
+use crate::results::{MAX_RERANK_ITEMS, f32s};
+use crate::state::{Loaded, Served, Slot, State};
 use crate::status::RERANK_OPTIONS;
+use crate::stream::run::read_output;
 
 /// Executes a `TASK_RERANK` `ModelInfer` call.
 pub(crate) fn infer_rerank(
@@ -235,4 +239,60 @@ pub fn rerank_options(params: &HashMap<String, InferParameter>) -> Result<turbo_
         max_tokens: v[1],
         stride: v[2],
     })
+}
+
+/// Scores `(query, passage)` pairs across `max_batch`-sized chunks on `slot`,
+/// checking `deadline` before each write and run and returning one raw logit per
+/// candidate in input order (`#2609`).
+pub(crate) fn score_rerank_batches<P: AsRef<str>>(
+    state: &State,
+    loaded: &Loaded,
+    slot: &Slot,
+    query: &str,
+    passages: &[P],
+    opts: &turbo_rerank_options,
+    deadline: &Deadline,
+) -> Result<Vec<f32>> {
+    let max_batch = (slot.info.max_batch as usize).max(1);
+    if max_batch > MAX_RERANK_ITEMS as usize {
+        return Err(Failure::new(TURBO_E_CAPACITY, 0, "invalid session max_batch"));
+    }
+    let q_view = turbo_text { ptr: query.as_ptr().cast(), len: query.len() as u64 };
+    let mut logits = Vec::with_capacity(passages.len());
+    for chunk in passages.chunks(max_batch) {
+        check_before_exec(deadline, &loaded.metrics)?;
+        let pairs: Vec<turbo_text_pair> = chunk
+            .iter()
+            .map(|p| {
+                let text = p.as_ref();
+                turbo_text_pair {
+                    query: q_view,
+                    passage: turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 },
+                }
+            })
+            .collect();
+        slot.session.write_pairs(&pairs, opts)?;
+        check_before_exec(deadline, &loaded.metrics)?;
+        loaded.metrics.record_batch_size(pairs.len());
+        state.stream.runs.fetch_add(1, Ordering::Relaxed);
+        let output = slot.session.run()?;
+        let (dim, dtype, bytes) = read_output(&output, pairs.len())?;
+        drop(output);
+        if dtype != TURBO_DTYPE_F32 || (dim != 1 && dim != 2) {
+            return Err(Failure::new(
+                TURBO_E_INTERNAL,
+                0,
+                format!("unexpected rerank output shape: dim={dim}, dtype={dtype}"),
+            ));
+        }
+        let vals = f32s(&bytes);
+        if dim == 1 {
+            logits.extend_from_slice(&vals);
+        } else {
+            for &[neg, pos] in vals.as_chunks::<2>().0 {
+                logits.push(pos - neg);
+            }
+        }
+    }
+    Ok(logits)
 }
