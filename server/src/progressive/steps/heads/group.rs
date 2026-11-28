@@ -18,6 +18,7 @@
 //! rows, and later steps over the same view and tokens reuse the cache.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
@@ -35,6 +36,7 @@ use turbo_tagger::{CorefHead, RelationHead, SpanHead, WordEncoder};
 
 use super::HeadStep;
 use crate::api::TURBO_E_INVALID_ARGUMENT;
+use crate::progressive::cache::CallScope;
 
 /// A head of the group, as its step decodes it.
 pub(crate) enum GroupHead {
@@ -91,7 +93,7 @@ impl GroupHead {
     }
 }
 
-fn open_head(step: HeadStep, bundle: &Bundle, spec: &HeadSpec) -> Result<GroupHead, CoreError> {
+pub(crate) fn open_head(step: HeadStep, bundle: &Bundle, spec: &HeadSpec) -> Result<GroupHead, CoreError> {
     Ok(match step {
         HeadStep::Pos => GroupHead::Layer(Box::new(PosTags::open(bundle, spec)?)),
         HeadStep::Morphology => GroupHead::Layer(Box::new(MorphFeatures::<Tokens>::open(bundle, spec)?)),
@@ -115,13 +117,16 @@ struct Cached {
 
 /// The heads of one request and the encoder read they share.
 pub struct HeadGroup {
-    words: Mutex<WordEncoder>,
-    heads: Vec<(HeadStep, GroupHead)>,
+    words: Arc<Mutex<WordEncoder>>,
+    heads: Vec<(HeadStep, Arc<GroupHead>)>,
     poolings: Vec<WordPooling>,
     /// Whether the read is of the whole view as one sequence.
     whole: bool,
     taps: usize,
+    alone: bool,
     hidden: usize,
+    rows: AtomicU64,
+    scope: CallScope,
     cache: Mutex<Option<Cached>>,
     pub(crate) model: ModelRef,
     pub(crate) execution: Execution,
@@ -151,22 +156,35 @@ impl HeadGroup {
         o: &EncoderOptions,
     ) -> Result<Arc<HeadGroup>, CoreError> {
         let bundle = Bundle::open(dir)?;
-        let refuse = |m: String| CoreError::new(TURBO_E_INVALID_ARGUMENT, m);
         let mut heads = Vec::with_capacity(steps.len());
         for (s, name) in steps {
             let spec = find_head(&bundle, Some(name), s.layer(), s.kind())?;
-            heads.push((*s, open_head(*s, &bundle, spec)?));
+            heads.push((*s, Arc::new(open_head(*s, &bundle, spec)?)));
         }
         let taps = heads.iter().map(|(_, h)| h.taps()).max().unwrap_or(1);
-        let mut words = open_words(dir, o, taps)?;
-        // Heads that all read one same layer need no other from the encoder.
-        words.first_tap_alone(heads.iter().all(|(_, h)| h.reads_first_tap_alone(taps)));
+        let words = Arc::new(Mutex::new(open_words(dir, o, taps)?));
+        Self::from_cached(&bundle, words, heads, CallScope::default())
+    }
+
+    pub(crate) fn from_cached(
+        bundle: &Bundle,
+        words: Arc<Mutex<WordEncoder>>,
+        heads: Vec<(HeadStep, Arc<GroupHead>)>,
+        scope: CallScope,
+    ) -> Result<Arc<HeadGroup>, CoreError> {
+        let refuse = |m: String| CoreError::new(TURBO_E_INVALID_ARGUMENT, m);
+        let taps = heads.iter().map(|(_, h)| h.taps()).max().unwrap_or(1);
+        let alone = heads.iter().all(|(_, h)| h.reads_first_tap_alone(taps));
+        let (execution, width, hidden) = {
+            let w = words.lock().unwrap_or_else(PoisonError::into_inner);
+            w.check_taps(taps as u32)?;
+            (w.execution().clone(), w.width(), w.hidden())
+        };
         for (_, h) in &heads {
-            if let Some(&n) = h.hidden().iter().find(|&&n| n != words.hidden()) {
+            if let Some(&n) = h.hidden().iter().find(|&&n| n != hidden) {
                 return Err(refuse(format!(
-                    "head {:?} reads {n} values a word, the encoder gives {}",
+                    "head {:?} reads {n} values a word, the encoder gives {hidden}",
                     h.spec().name,
-                    words.hidden()
                 )));
             }
         }
@@ -179,12 +197,15 @@ impl HeadGroup {
         let m = &bundle.manifest.model;
         Ok(Arc::new(HeadGroup {
             model: ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() },
-            execution: words.execution().clone(),
-            width: words.width(),
+            execution,
+            width,
             whole: heads.iter().any(|(s, _)| s.whole_view()),
-            taps: words.taps(),
-            hidden: words.hidden(),
-            words: Mutex::new(words),
+            taps,
+            alone,
+            hidden,
+            rows: AtomicU64::new(0),
+            scope,
+            words,
             heads,
             poolings,
             cache: Mutex::new(None),
@@ -194,7 +215,7 @@ impl HeadGroup {
     /// Rows the encoder has read: one a window, however many steps
     /// decoded from it.
     pub fn rows(&self) -> u64 {
-        self.words.lock().unwrap_or_else(PoisonError::into_inner).rows()
+        self.rows.load(Ordering::Relaxed)
     }
 
     /// The steps' heads, in the order opened.
@@ -211,7 +232,7 @@ impl HeadGroup {
         self.heads
             .iter()
             .find(|(s, _)| *s == step)
-            .map(|(_, h)| h)
+            .map(|(_, h)| &**h)
             .ok_or_else(|| format!("{} was not opened with this group", step.name()))
     }
 
@@ -244,8 +265,12 @@ impl HeadGroup {
         {
             return Ok((seqs, Arc::clone(&c.features)));
         }
+        let _guard = self.scope.enter();
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
+        words.set_taps(self.taps, self.alone);
+        let before = words.rows();
         let f = Arc::new(words.token_features_pooled(view, read, &seqs, subwords, &self.poolings)?);
+        self.rows.fetch_add(words.rows() - before, Ordering::Relaxed);
         *cache = Some(Cached { key, seqs: seqs.clone(), features: Arc::clone(&f) });
         Ok((seqs, f))
     }

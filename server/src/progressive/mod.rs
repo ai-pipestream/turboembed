@@ -4,6 +4,7 @@
 //! streams [`AnalyzeProgressiveEvent`] messages with strictly increasing 1-based
 //! sequence numbers as each branch completes.
 
+pub(crate) mod cache;
 mod config;
 #[cfg(test)]
 mod deadline_receipt_tests;
@@ -103,8 +104,11 @@ pub(crate) async fn start_progressive(
     sink: Option<Arc<SinkForwarder>>,
     pii_policy: PiiOutputPolicy,
 ) -> Reply<ProgressiveStream> {
+    let priority =
+        crate::priority::Priority::from_metadata(req.metadata())?.unwrap_or(crate::priority::Priority::Interactive);
     let deadline = Deadline::from_request(&req)?;
     deadline.check()?;
+    let cancel = Arc::clone(deadline.cancel_flag());
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
     check_operation_key(&req.operation_key).map_err(plain)?;
@@ -113,11 +117,10 @@ pub(crate) async fn start_progressive(
 
     let typed = req.typed_result.as_ref().map(typed::target).transpose().map_err(plain)?;
     let doc = build_initial_document(&req, offsets)?;
-    let analyzer = build_pipeline(state, &req, &doc)?;
+    let analyzer = build_pipeline(state, &req, &doc, cache::CallScope::new(priority, Arc::clone(&cancel)))?;
     let mut op = Operation::start(&req.operation_key);
     op.requested_steps = analyzer.step_ids().into_iter().map(str::to_owned).collect();
 
-    let cancel = Arc::clone(deadline.cancel_flag());
     let task_cancel = Arc::clone(&cancel);
     let task_deadline = deadline.clone();
     let (tx, rx) = mpsc::channel::<std::result::Result<AnalyzeProgressiveEvent, Status>>(32);
@@ -148,6 +151,14 @@ pub(crate) async fn start_progressive(
     }))
 }
 
+fn check_graph_cap(what: &str, len: usize) -> Result<(), Status> {
+    if len as u64 > MAX_GRAPH_BYTES {
+        let msg = format!("{what} length {len} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})");
+        return Err(plain(Failure::new(TURBO_E_CAPACITY, 0, msg)));
+    }
+    Ok(())
+}
+
 fn build_initial_document(req: &AnalyzePipelineRequest, offsets: OffsetMode) -> Result<Document, Status> {
     if let Some(seed) = &req.structure_seed {
         if !req.initial_graph.is_empty() || !req.source_bytes.is_empty() || !req.text.is_empty() {
@@ -155,53 +166,34 @@ fn build_initial_document(req: &AnalyzePipelineRequest, offsets: OffsetMode) -> 
                 "structure_seed carries the text: leave text, source_bytes and initial_graph empty",
             )));
         }
-        if seed.text.len() as u64 > MAX_GRAPH_BYTES {
-            return Err(plain(Failure::new(
-                TURBO_E_CAPACITY,
-                0,
-                format!("structure_seed text length {} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})", seed.text.len()),
-            )));
-        }
+        check_graph_cap("structure_seed text", seed.text.len())?;
         return seed::seed_document(seed, offsets).map_err(plain);
     }
 
     if !req.initial_graph.is_empty() {
-        if req.initial_graph.len() as u64 > MAX_GRAPH_BYTES {
-            return Err(plain(Failure::new(
-                TURBO_E_CAPACITY,
-                0,
-                format!("initial_graph length {} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})", req.initial_graph.len()),
-            )));
-        }
+        check_graph_cap("initial_graph", req.initial_graph.len())?;
         let graph = DocumentGraph::from_bytes(&req.initial_graph)
             .map_err(|e| plain(bad(format!("initial_graph decode: {e}"))))?;
         return import(&graph, codecs()).map_err(|e| plain(bad(format!("initial_graph import: {e}"))));
     }
 
     if !req.source_bytes.is_empty() {
-        if req.source_bytes.len() as u64 > MAX_GRAPH_BYTES {
-            return Err(plain(Failure::new(
-                TURBO_E_CAPACITY,
-                0,
-                format!("source_bytes length {} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})", req.source_bytes.len()),
-            )));
-        }
+        check_graph_cap("source_bytes", req.source_bytes.len())?;
         let text = std::str::from_utf8(&req.source_bytes)
             .map_err(|e| plain(bad(format!("source_bytes is not valid UTF-8: {e}"))))?;
         return Ok(Document::new(text));
     }
 
-    if req.text.len() as u64 > MAX_GRAPH_BYTES {
-        return Err(plain(Failure::new(
-            TURBO_E_CAPACITY,
-            0,
-            format!("text length {} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})", req.text.len()),
-        )));
-    }
+    check_graph_cap("text", req.text.len())?;
     Ok(Document::new(req.text.as_str()))
 }
 
-fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Document) -> Result<Analyzer, Status> {
+fn build_pipeline(
+    state: &State,
+    req: &AnalyzePipelineRequest,
+    initial_doc: &Document,
+    scope: cache::CallScope,
+) -> Result<Analyzer, Status> {
     let (step_names, profile_name, required_bundles): (Vec<&str>, &str, &[&str]) = if !req.steps.is_empty() {
         (req.steps.iter().map(String::as_str).collect(), req.profile.as_str(), &[])
     } else if let Some(p) = find_profile(req.profile.as_str()) {
@@ -241,6 +233,7 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
             relations,
             relation_model: &req.relation_model,
             vocabulary: req.vocabulary.as_ref(),
+            scope,
         },
     )
     .map_err(plain)

@@ -6,11 +6,9 @@ use std::sync::OnceLock;
 
 use turbo_analysis::analyzer::Builder;
 use turbo_analysis::{Analyzer, Bound, Document, Key};
-use turbo_analysis_embed::{ChunkVectors, LevelVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors};
 use turbo_analysis_layers::{
     Boundaries, Chunks, Entities, Levels, Sentences, Stems, Structure, Subwords, Terms, Tokens,
 };
-use turbo_chunker::{Budget, Chunker};
 use turbo_geo::{BundledGazetteer, NameAnnotator, NameFinder};
 use turbo_gliner::ExtractionSchema;
 use turbo_normalize::{CaseFold, Chain, Invisible, NormalizeStep, Normalizer, UnicodeForm, Whitespace};
@@ -21,8 +19,7 @@ use turbo_structure::{StructureAnnotator, Syntax};
 use turbo_tokenize::uax29::UntypedWordTokenizer;
 
 use super::normalize::{
-    CasedNormalizeStep, NormalizedNameStep, NormalizedSourceStep, NormalizedStructureProjectStep,
-    NormalizedSubwordsStep, NormalizedTokensStep,
+    CasedNormalizeStep, NormalizedNameStep, NormalizedSourceStep, NormalizedStructureProjectStep, NormalizedTokensStep,
 };
 
 mod block5;
@@ -178,6 +175,7 @@ pub(crate) struct StepOptions<'a> {
     pub(crate) relations: Option<ZeroShotRelationConfig>,
     pub(crate) relation_model: &'a str,
     pub(crate) vocabulary: Option<&'a VocabularyBinding>,
+    pub(crate) scope: super::cache::CallScope,
 }
 
 /// Builds an [`Analyzer`] from `initial_doc` and the requested `step_names`
@@ -208,7 +206,7 @@ pub(crate) fn compile_analyzer_with_state(
     required_bundles: &[&str],
     options: StepOptions<'_>,
 ) -> Result<Analyzer, Failure> {
-    let StepOptions { redaction, open_span, relations, relation_model, vocabulary } = options;
+    let StepOptions { redaction, open_span, relations, relation_model, vocabulary, scope } = options;
     let redacts = step_names.iter().any(|&s| block5::is_redact_step(s));
     if redaction.is_some() && !redacts {
         return Err(bad("pii_redaction is set but the steps do not include turbo-pii:redact"));
@@ -237,7 +235,7 @@ pub(crate) fn compile_analyzer_with_state(
         None
     };
     let embed_cx =
-        resolve_embed_context(state, model_name, profile_name, required_bundles, &step_vec, gliner.is_some())?;
+        resolve_embed_context(state, model_name, profile_name, required_bundles, &step_vec, gliner.is_some(), scope)?;
     let vocab = block5::resolve_vocabulary(
         state,
         model_name,
@@ -263,7 +261,7 @@ pub(crate) fn compile_pipeline(
 fn compile_pipeline_with(
     initial_doc: &Document,
     step_names: &[&str],
-    mut embed_cx: Option<EmbedContext>,
+    embed_cx: Option<EmbedContext>,
     gliner: Option<(std::sync::Arc<turbo_gliner::Model>, ExtractionSchema)>,
     relation: Option<(std::sync::Arc<turbo_relation::Gliner2Relations>, ZeroShotRelationConfig)>,
     profile_name: &str,
@@ -373,6 +371,10 @@ fn compile_pipeline_with(
             true => (next_builder, true),
             false => heads::add_step(next_builder, name, head_plan.as_ref()),
         };
+        let (next_builder, handled) = match handled {
+            true => (next_builder, true),
+            false => embed::add_step(next_builder, name, embed_cx.as_ref(), active_norm_view, gliner.as_ref())?,
+        };
         builder = next_builder;
         if handled {
             continue;
@@ -430,59 +432,6 @@ fn compile_pipeline_with(
                 } else {
                     builder.step(Bound::new(ann).write(0, instance))
                 }
-            }
-            "turbo:subwords" | "subwords" => {
-                if let Some(cx) = embed_cx.as_ref() {
-                    let ann = cx.subword_annotator()?;
-                    if let Some(nv) = active_norm_view {
-                        builder.step(NormalizedSubwordsStep { annotator: ann, norm_view: nv })
-                    } else {
-                        builder.add(ann)
-                    }
-                } else {
-                    let (model, _) = gliner.as_ref().expect("GLiNER subwords resolved");
-                    let ann = turbo_gliner::GlinerSubwords::new(model.clone());
-                    if let Some(nv) = active_norm_view {
-                        builder.step(NormalizedSubwordsStep { annotator: ann, norm_view: nv })
-                    } else {
-                        builder.add(ann)
-                    }
-                }
-            }
-            "turbo:chunker" | "turbo:chunks" => {
-                let budget = if let Some(cx) = embed_cx.as_mut() {
-                    let va = cx.vector_annotator()?;
-                    let max = va.width();
-                    let target = (max / 2).max(1);
-                    Budget { max, target, size_weight: target.saturating_mul(2), overhead: va.overhead() }
-                } else {
-                    Budget { max: 256, target: 128, size_weight: 256, overhead: 0 }
-                };
-                builder.add(Chunker { budget })
-            }
-            "turbo:sentence-vectors" | "sentence_vectors" => {
-                let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
-                builder.add(SentenceVectors(va))
-            }
-            "turbo:chunk-vectors" | "chunk_vectors" => {
-                let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
-                builder.add(ChunkVectors(va))
-            }
-            "turbo:sentence-chunk-vectors" | "sentence_chunk_vectors" => {
-                let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
-                builder.add(SentenceChunkVectors(va))
-            }
-            "turbo:subword-vectors" | "subword_vectors" => {
-                let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
-                builder.add(SubwordVectors(va))
-            }
-            "turbo:level-vectors" | "level_vectors" => {
-                let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
-                builder.step(LevelVectors(va).bound())
-            }
-            "turbo:sparse" | "turbo:sparse-terms" | "sparse_terms" => {
-                let sa = embed_cx.as_ref().expect("embed context resolved").sparse_annotator()?;
-                builder.add(sa)
             }
             unknown => return Err(bad(format!("unknown pipeline step '{unknown}'"))),
         };

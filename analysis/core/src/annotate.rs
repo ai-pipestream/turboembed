@@ -163,6 +163,57 @@ pub trait Annotator: Send + Sync + 'static {
     }
 }
 
+impl<A: Annotator> Annotator for std::sync::Arc<A> {
+    const ID: &'static str = A::ID;
+    const VERSION: &'static str = A::VERSION;
+    type Reads = A::Reads;
+    type Writes = A::Writes;
+
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        (**self).annotate(input)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        (**self).annotate_batch(inputs)
+    }
+
+    fn annotate_batch_placed<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Placed<Self::Writes>> {
+        (**self).annotate_batch_placed(inputs)
+    }
+
+    fn requires(&self) -> &[KeyId] {
+        (**self).requires()
+    }
+
+    fn produces(&self) -> &[KeyId] {
+        (**self).produces()
+    }
+
+    fn model(&self) -> Option<ModelRef> {
+        (**self).model()
+    }
+
+    fn execution(&self) -> Option<Execution> {
+        (**self).execution()
+    }
+
+    fn config_hash(&self) -> u64 {
+        (**self).config_hash()
+    }
+
+    fn is_cacheable(&self) -> bool {
+        (**self).is_cacheable()
+    }
+
+    fn locality(&self) -> Locality {
+        (**self).locality()
+    }
+
+    fn cost_hint(&self) -> u32 {
+        (**self).cost_hint()
+    }
+}
+
 /// An annotator bound to the layer instances it reads and writes: by
 /// default the default instances, or named ones (`gold`, `nfkc`).
 pub struct Bound<A: Annotator> {

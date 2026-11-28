@@ -8,7 +8,6 @@
 //! requires the PII layer from the scanning step.
 
 use std::any::Any;
-use std::path::Path;
 use std::sync::Arc;
 
 use turbo_abbrev::AbbreviationAnnotator;
@@ -29,7 +28,6 @@ use turbo_numeric::temporal::TemporalExtractor;
 use turbo_numeric::{DocumentDateSelector, NumberScanner};
 use turbo_pii::rewrite::MaskedView;
 use turbo_pii::{Pack, PiiDetector, PiiRiskScorer};
-use turbo_sat::{SatAnnotator, SatOptions};
 use turbo_stem::{Algorithm, StemAnnotator, TermAnnotator};
 use turbo_stopword::{ListChoice, StopwordAnnotator, StopwordLanguage};
 use turbo_structure::LayoutProjector;
@@ -127,12 +125,7 @@ pub(super) fn add_step(
         _ if is_sat_step(name) => {
             let cx = embed_cx
                 .ok_or_else(|| Failure::new(TURBO_E_BUNDLE_NOT_FOUND, 0, "turbo:sat needs a loaded SaT bundle"))?;
-            let annotator = SatAnnotator::open(
-                Path::new(&cx.loaded.bundle),
-                &SatOptions { encoder: cx.encoder_options(), ..SatOptions::default() },
-            )
-            .map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("turbo:sat: {e}")))?;
-            builder.add(annotator)
+            builder.add(cx.scope(cx.sat_annotator()?))
         }
         "turbo-abbrev:schwartz-hearst" | "turbo-abbrev:abbreviations" | "turbo:abbreviations" => {
             builder.add(AbbreviationAnnotator)

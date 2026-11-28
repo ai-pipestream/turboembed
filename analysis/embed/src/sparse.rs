@@ -99,15 +99,25 @@ impl SparseAnnotator {
     /// as the core loads it on seal.
     pub fn open(dir: &Path, o: &SparseOptions) -> Result<SparseAnnotator, CoreError> {
         let bundle = Bundle::open(dir)?;
-        let tokenizer = Tokenizer::load(&bundle)?;
-        let mlm = MlmHead::load(&bundle)?;
+        Self::open_with(&bundle, o, |eo| Encoder::open(dir, eo))
+    }
+
+    /// Builds a [`SparseAnnotator`] from an already-opened [`Bundle`] and a
+    /// caller-supplied [`Encoder`] factory.
+    pub fn open_with(
+        bundle: &Bundle,
+        o: &SparseOptions,
+        make_encoder: impl FnOnce(&EncoderOptions) -> Result<Encoder, CoreError>,
+    ) -> Result<SparseAnnotator, CoreError> {
+        let tokenizer = Tokenizer::load(bundle)?;
+        let mlm = MlmHead::load(bundle)?;
         let mut eo = o.encoder.clone();
         let max_batch = if eo.max_batch == 0 { bundle.manifest.embed().max_batch } else { eo.max_batch };
         let max_seq = if eo.max_seq == 0 { bundle.manifest.embed().max_seq } else { eo.max_seq };
         eo.max_batch = max_batch;
         eo.max_seq = max_seq;
         eo.max_ranges = max_batch.saturating_mul(max_seq);
-        let encoder = Encoder::open(dir, &eo)?;
+        let encoder = make_encoder(&eo)?;
         let info = encoder.info().clone();
         if mlm.hidden != info.dim as usize {
             return Err(CoreError::new(
@@ -158,7 +168,7 @@ impl SparseAnnotator {
             }),
             tokenizer,
             mlm,
-            model: model_ref(&bundle),
+            model: model_ref(bundle),
             execution: info.execution,
             row_head: head_tokens,
             row_tail: tail,
