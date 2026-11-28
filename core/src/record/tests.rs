@@ -354,3 +354,38 @@ fn a_device_clock_round_trips_and_a_record_without_one_still_parses() {
     let extra = json.replace("\"act_mhz\":2150", "\"act_mhz\":2150,\"gt\":0");
     assert!(serde_json::from_str::<Record>(&extra).is_err(), "an unknown clock field is refused");
 }
+
+#[test]
+fn rerank_evidence_is_for_the_measured_bundle_and_numerics() {
+    let cell = Cell {
+        arch: "rtx4080super",
+        name: "NVIDIA GeForce RTX 4080 SUPER",
+        cpu: false,
+        backend: "cuda",
+        task: crate::TURBO_TASK_RERANK,
+        precision: TURBO_PRECISION_EXACT,
+        dtype: TURBO_DTYPE_F32,
+        version: library_version(),
+        os: "linux",
+        graph_format: None,
+    };
+    let model = Some("cross-encoder/ms-marco-MiniLM-L6-v2");
+    assert_eq!(
+        decide_embedded_for(&cell, model),
+        Verdict::Supported {
+            benchmark: "rtx4080super.cuda.rerank.exact.ms-marco-minilm-l6-v2-bb57a12c.66bbe5e2ff6e.json".into(),
+            cosine_floor: 0.0,
+            speed_ratio: 237.93700900000002 / 802.4356580000001
+        }
+    );
+    assert_eq!(decide_embedded_for(&cell, Some("unmeasured-model")), Verdict::Not(NO_RECORD.into()));
+    for mismatch in [
+        Cell { dtype: TURBO_DTYPE_F16, ..cell },
+        Cell { version: "other", ..cell },
+        Cell { os: "windows", ..cell },
+        Cell { backend: "levelzero", ..cell },
+        Cell { cpu: true, ..cell },
+    ] {
+        assert!(matches!(decide_embedded_for(&mismatch, model), Verdict::Not(_)), "{mismatch:?}");
+    }
+}

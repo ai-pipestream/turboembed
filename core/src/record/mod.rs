@@ -385,6 +385,7 @@ pub fn library_version() -> &'static str {
 
 mod decisions;
 mod names;
+mod tasks;
 #[cfg(test)]
 mod tests;
 mod timing;

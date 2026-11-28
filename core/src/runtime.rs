@@ -49,56 +49,6 @@ impl Runtime {
     /// are the record's.
     pub(super) fn capability(&self, index: u32, task: u32, precision: u32) -> Result<turbo_capability> {
         let d = self.device(index)?;
-        if matches!(task, TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) {
-            let mut cap = self.capability(index, TURBO_TASK_EMBED, precision)?;
-            cap.speed_ratio = 0.0;
-            cap.cosine_floor = 0.0;
-            cap.benchmark.fill(0);
-            if d.backend.name() == "cpu" && cap.status != backend::TURBO_CAP_UNSUPPORTED {
-                cap.status = backend::TURBO_CAP_EXPERIMENTAL;
-                if task == TURBO_TASK_RERANK {
-                    cap.options_honored = 0b111;
-                }
-                write_str(
-                    &mut cap.reason,
-                    if task == TURBO_TASK_RERANK {
-                        "CPU cross-encoder; rerank speed record pending"
-                    } else {
-                        "CPU extractive QA; task benchmark pending"
-                    },
-                );
-            } else if task == TURBO_TASK_RERANK
-                && cap.status != backend::TURBO_CAP_UNSUPPORTED
-                && d.backend.runs_rerank()
-            {
-                // The pair encoder is the embedding encoder with CLS pooling;
-                // the head and the max over windows run on the host.
-                cap.status = backend::TURBO_CAP_EXPERIMENTAL;
-                cap.options_honored = 0b111;
-                write_str(&mut cap.reason, "cross-encoder through the embedding encoder; rerank speed record pending");
-            } else if task == TURBO_TASK_EXTRACTIVE_QA
-                && cap.status != backend::TURBO_CAP_UNSUPPORTED
-                && backend::offered!(d.backend, embed_write_ranges).is_ok()
-            {
-                // The span head reads each token's final state through a
-                // singleton range, so any backend with range writes runs it.
-                cap.status = backend::TURBO_CAP_EXPERIMENTAL;
-                write_str(&mut cap.reason, "extractive QA through range writes; task benchmark pending");
-            } else {
-                cap.status = backend::TURBO_CAP_UNSUPPORTED;
-                cap.dtype = 0;
-                cap.options_honored = 0;
-                write_str(
-                    &mut cap.reason,
-                    if task == TURBO_TASK_RERANK {
-                        "rerank has run on the CPU, CUDA, Level Zero and Metal only"
-                    } else {
-                        "extractive QA needs range writes, which this backend does not offer"
-                    },
-                );
-            }
-            return Ok(cap);
-        }
         if task != TURBO_TASK_EMBED && task != TURBO_TASK_RERANK && task != TURBO_TASK_EXTRACTIVE_QA {
             return Err(Error::new(INVALID_ENUM, format!("task: {task} is not a TURBO_TASK_* value")));
         }
@@ -108,10 +58,12 @@ impl Runtime {
         let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
         cap.struct_size = size_of::<turbo_capability>() as u32;
         let b = d.backend;
+        // Both score tasks run through the embedding encoder. Its availability
+        // and dtype apply to them, but its benchmark and cosine do not.
         backend::check(b, "capability", |err| unsafe {
             (b.capability)(
                 d.ordinal,
-                task,
+                TURBO_TASK_EMBED,
                 precision,
                 &mut cap.status,
                 &mut cap.dtype,
@@ -130,6 +82,27 @@ impl Runtime {
             backend::TURBO_CAP_EXPERIMENTAL => {
                 // The options the core applies before a backend sees the rows.
                 cap.options_honored |= session::CORE_HONORED;
+                let missing = match task {
+                    TURBO_TASK_RERANK if !b.runs_rerank() => {
+                        Some("rerank has run on the CPU, CUDA, Level Zero and Metal only")
+                    }
+                    TURBO_TASK_EXTRACTIVE_QA
+                        if b.name() != "cpu" && backend::offered!(b, embed_write_ranges).is_err() =>
+                    {
+                        Some("extractive QA needs range writes, which this backend does not offer")
+                    }
+                    _ => None,
+                };
+                if let Some(reason) = missing {
+                    cap.status = backend::TURBO_CAP_UNSUPPORTED;
+                    cap.dtype = 0;
+                    cap.options_honored = 0;
+                    write_str(&mut cap.reason, reason);
+                    return Ok(cap);
+                }
+                if task == TURBO_TASK_RERANK {
+                    cap.options_honored = 0b111;
+                }
                 let graph_format = cell_graph_format(b.name(), d.ordinal);
                 let cell = record::Cell {
                     arch: &cstr(&d.info.arch),
@@ -287,3 +260,6 @@ mod tests {
         assert_eq!(snap.last().map(String::as_str), Some(format!("warning {}", MAX_RUNTIME_WARNINGS - 1).as_str()));
     }
 }
+
+#[cfg(all(test, feature = "cpu"))]
+mod task_capability_tests;

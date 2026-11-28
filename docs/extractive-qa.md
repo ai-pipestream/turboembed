@@ -4,9 +4,9 @@
 inputs. `turbo::qa::ExtractiveQa` loads the bundle, produces window logits, and
 returns either calibrated abstention or ranked byte spans. It runs on any
 backend that offers range writes (`embed_write_ranges`): the CPU and CUDA are
-measured below. The capability cell reports the task as experimental on every
-device: SQuAD 2.0 accuracy and throughput are recorded, but no benchmark record
-compiled into the build backs SUPPORTED for it yet.
+measured below. The capability cell reports EXPERIMENTAL on devices that run QA.
+The committed records time the library and omit a reference program's p50,
+so the cell reports a zero speed ratio.
 
 ## Bundle contract
 
@@ -167,9 +167,8 @@ turbo-bench qa --bundle <bundle> --questions dev-v2.0.json --device cuda --preci
 
 ## What is still missing
 
-The capability cell stays experimental: no benchmark record compiled into the
-build backs SUPPORTED for extractive QA, and the records above are task records,
-not the embedding records `turbo-bench check` reads. Metal and Level Zero offer
+The capability query checks the compiled QA records. A matching timing
+appears in the reason with the missing reference measurement. Metal and Level Zero offer
 range writes and so open QA sessions; they are reached only by naming them in
 `QaOptions`, as `ExtractiveQa::open`, which the bundle check and the annotator
 use, stays on the CPU. Level Zero is held to the reference and the CPU path by

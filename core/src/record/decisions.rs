@@ -160,6 +160,9 @@ pub fn embedded() -> &'static [(&'static str, Result<Record, String>)] {
 /// not parse backs nothing; a test keeps the committed ones parsing.
 /// When `model_id` is set, only records of that bundle are considered.
 pub fn decide_embedded_for(cell: &Cell, model_id: Option<&str>) -> Verdict {
+    if matches!(cell.task, crate::TURBO_TASK_RERANK | crate::TURBO_TASK_EXTRACTIVE_QA) {
+        return super::tasks::decide(cell, model_id);
+    }
     decide(
         embedded().iter().filter_map(|(n, r)| {
             r.as_ref()

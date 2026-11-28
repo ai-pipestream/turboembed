@@ -3,8 +3,9 @@
 A capability cell (`turbo_runtime_capability`) says SUPPORTED only when a
 benchmark record backs it. A record is one measurement of the library on
 one device, for one task and precision, on one bundle, at one commit,
-next to the vendor's fastest programs on the same token rows. Records are
-JSON files in `benchmarks/records/`, written by one tool, `turbo-bench`
+next to the vendor's fastest programs on the same token rows. Embedding records
+are JSON files in `benchmarks/records/`. Rerank and QA use separate task
+formats in `benchmarks/rerank/` and `benchmarks/qa/`. All are written by `turbo-bench`
 (`bench/`), and compiled into the library by `core/build.rs`: the
 library reads no file at run time. Nothing in a record is typed by hand.
 
@@ -994,6 +995,20 @@ name) is named: the cell is SUPPORTED, `benchmark` is its file name,
 `speed_ratio`. When none backs it, the cell stays EXPERIMENTAL and
 `reason` is the newest record's file name and what it lacks, or `no
 benchmark record for this cell` when no record is for it.
+
+For rerank and extractive QA the core reads the task-specific measurements
+in `benchmarks/rerank/` and `benchmarks/qa/`. It matches the device name
+as well as arch, OS, backend, precision and library version. Version 1 of
+these formats records the requested precision but omits upstream score
+conformance. For the two Linux RTX 4080 SUPER CUDA EXACT rerank receipts,
+the core pairs the SHA-256 of each complete timing file with the largest
+absolute error measured against Transformers on that model at F32
+(docs/reranking.md, Parity). The acceptable error is at most 1e-4. These
+runs used the default rerank options and one untruncated window per pair.
+The reported ratio is the library's pass p50 divided by TEI's pass p50 on
+those requests. Scalar scores have no cosine floor. The QA records contain
+question and window throughput only. Timing the library on a CPU supplies
+no reference-program p50 for a GPU or CPU capability.
 
 The version rule is the simplest one that is honest: a record counts
 only for the library version it was measured with. A later commit of the
