@@ -1,14 +1,18 @@
-//! Leaf clause evaluators (`TermClause`, `PhraseClause`, `SparseClause`,
-//! `LateInteractionClause`, and `FilterClause`) for `TurboSearchService` (`#1221`).
+//! Leaf clause evaluators (`SemanticClause`, `TermClause`, `PhraseClause`,
+//! `SparseClause`, `LateInteractionClause`, and `FilterClause`) for
+//! `TurboSearchService` (`#1221`, `#2609`).
+
+use std::collections::HashMap;
 
 use turbo_chunker::terms::Bm25;
 
-use crate::api::Result;
+use crate::api::{Failure, Result, TURBO_E_INTERNAL};
 use crate::proto::search::{
-    FilterClause, LateInteractionClause, MatchedSpan, PhraseClause, SpanProto, SparseClause, TermClause, TermMatchMode,
+    FilterClause, LateInteractionClause, MatchedSpan, PhraseClause, SemanticClause, SpanProto, SparseClause,
+    TermClause, TermMatchMode,
 };
 use crate::search::ingest::analyze_chunk_terms;
-use crate::search::registry::{HybridIndex, ScoreMap, bad_arg, parse_space};
+use crate::search::registry::{CompiledDense, HybridIndex, ScoreMap, bad_arg, parse_space};
 
 pub const MAX_TOP_K: usize = 10_000;
 pub const MAX_PHRASE_TERMS: usize = 64;
@@ -227,4 +231,84 @@ fn normalize_clause_terms(raw_terms: &[String]) -> Vec<String> {
         return analyzed;
     }
     raw_terms.iter().filter(|s| !s.is_empty()).map(|s| s.to_ascii_lowercase()).collect()
+}
+
+pub(crate) fn eval_semantic_clause(
+    ix: &HybridIndex,
+    c: &SemanticClause,
+    embedded_queries: &HashMap<String, Vec<f32>>,
+) -> Result<ScoreMap> {
+    let k = bounded_top_k(c.top_k, ix.chunks.len().max(1))?;
+    let (q_space, q_vec) = if !c.query_vector.is_empty() {
+        let sp = parse_space(c.query_space.as_ref())
+            .map_err(|f| bad_arg(format!("SemanticClause.query_space: {}", f.message)))?;
+        (sp, c.query_vector.clone())
+    } else if !c.query_text.is_empty() && !ix.spec.embed_bundle.is_empty() {
+        let sp = match &c.query_space {
+            Some(s) => parse_space(Some(s))?,
+            None => ix.space.clone(),
+        };
+        let vec = embedded_queries
+            .get(&c.query_text)
+            .cloned()
+            .ok_or_else(|| Failure::new(TURBO_E_INTERNAL, 0, "missing pre-embedded SemanticClause query_text"))?;
+        (sp, vec)
+    } else {
+        return Err(bad_arg("SemanticClause requires query_vector with query_space, or query_text with embed_bundle"));
+    };
+
+    let mut out = ScoreMap::new();
+    match &ix.dense {
+        CompiledDense::Empty => {
+            if q_space != ix.space {
+                return Err(bad_arg("query_space does not match index SpaceSpec"));
+            }
+            if q_vec.len() != ix.space.dim as usize {
+                return Err(bad_arg(format!(
+                    "query_vector has dimension {}, index holds {}",
+                    q_vec.len(),
+                    ix.space.dim
+                )));
+            }
+        }
+        CompiledDense::Flat(vec_ix) => {
+            let hits = vec_ix.top_k(&q_space, &q_vec, k).map_err(|e| bad_arg(e.to_string()))?;
+            for h in hits {
+                let chunk_row = *vec_ix.meta(h.row);
+                let ch = &ix.chunks[chunk_row as usize];
+                out.insert(
+                    chunk_row,
+                    (
+                        f64::from(h.score),
+                        vec![MatchedSpan {
+                            source: "dense".into(),
+                            label: ix.space.model.id.clone(),
+                            span: Some(SpanProto { start: ch.span.start, end: ch.span.end }),
+                            score: h.score,
+                        }],
+                    ),
+                );
+            }
+        }
+        CompiledDense::Quantized(q_ix) => {
+            let hits = q_ix.top_k(&q_space, &q_vec, k).map_err(|e| bad_arg(e.to_string()))?;
+            for h in hits {
+                let chunk_row = *q_ix.meta(h.row);
+                let ch = &ix.chunks[chunk_row as usize];
+                out.insert(
+                    chunk_row,
+                    (
+                        f64::from(h.score),
+                        vec![MatchedSpan {
+                            source: "turboquant".into(),
+                            label: format!("{}b", q_ix.config().bits),
+                            span: Some(SpanProto { start: ch.span.start, end: ch.span.end }),
+                            score: h.score,
+                        }],
+                    ),
+                );
+            }
+        }
+    }
+    Ok(out)
 }

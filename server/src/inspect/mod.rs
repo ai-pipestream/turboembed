@@ -8,6 +8,7 @@ pub mod pca;
 pub mod project;
 pub(crate) mod query;
 pub mod stacks;
+mod strategy;
 pub mod window;
 pub mod xray;
 

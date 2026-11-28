@@ -358,14 +358,17 @@ state-mutating admin RPCs, while admin tokens authorize both.
 succeeds without embedding credentials.
 
 Per-call `x-turbo-priority` metadata (`interactive` or `bulk`) routes
-`ModelInfer`, `AnalyzeQuery`, and `RerankAndHighlight` through a bounded
-two-lane session queue (`MAX_QUEUE_DEPTH`) in front of each model's session
-pool. `interactive` preempts queued `bulk` work while yielding one slot every
+`ModelInfer`, `AnalyzeQuery`, `RerankAndHighlight`, `ProjectChunks`, `Search`,
+`IndexDocuments`, and `Reindex` through a bounded two-lane session queue
+(`MAX_QUEUE_DEPTH`) in front of each model's session pool. `interactive`
+preempts queued `bulk` work while yielding one slot every
 `MAX_INTERACTIVE_BURST` grants so bulk ingest never starves; excess queued
 callers are refused immediately with `UNAVAILABLE` (`TURBO_E_BUSY`).
 
-Per-call `grpc-timeout` metadata is propagated into unary (`ModelInfer`)
-and streaming (`AnalyzeStream`, `AnalyzeDocumentProgressive`) workers.
+Per-call `grpc-timeout` metadata is propagated into unary (`ModelInfer`,
+`AnalyzeQuery`, `RerankAndHighlight`, `ProjectChunks`, `Search`, `Reindex`)
+and streaming (`AnalyzeStream`, `AnalyzeDocumentProgressive`, `IndexDocuments`)
+workers.
 When a deadline expires, in-flight batches and pipeline steps stop
 cooperatively, return held model sessions to their pool, release stream
 queue room, and answer `DEADLINE_EXCEEDED`. Positive timeout budgets are

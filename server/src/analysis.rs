@@ -329,17 +329,25 @@ impl AnalysisService for Analysis {
     }
 
     async fn project_chunks(&self, req: Request<ProjectChunksRequest>) -> Reply<ProjectChunksResponse> {
+        let priority =
+            crate::priority::Priority::from_metadata(req.metadata())?.unwrap_or(crate::priority::Priority::Interactive);
+        let deadline = crate::deadline::Deadline::from_request(&req)?;
+        if deadline.is_expired() {
+            self.state.metrics.record_cancelled_before_exec();
+            return Err(crate::deadline::deadline_status());
+        }
         let req = req.into_inner();
-        let policy = self.pii_policy;
-        let state = self.state.clone();
-        let out = tokio::task::spawn_blocking(move || {
-            let embed = |space: &crate::inspect::query::Space<'_>, text: &str| {
-                crate::inspect::query::embed_with(&state, space, text)
-            };
-            crate::inspect::project::project_chunks_with(&req, policy, Some(&embed))
-        })
-        .await
-        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("project_chunks task failed: {e}"))))?;
+        let out = crate::inspect::query::project_chunks_served(
+            self.state.clone(),
+            req,
+            self.pii_policy,
+            priority,
+            deadline.clone(),
+        )
+        .await;
+        if deadline.is_expired() {
+            return Err(crate::deadline::deadline_status());
+        }
         Ok(Response::new(out.map_err(plain)?))
     }
 

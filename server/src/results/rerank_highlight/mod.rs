@@ -9,24 +9,21 @@ mod validate;
 pub(crate) use calibrator::BundleCalibration;
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
-use turbo::{TURBO_DTYPE_F32, TURBO_TASK_RERANK, turbo_rerank_options, turbo_text, turbo_text_pair};
+use turbo::{TURBO_TASK_RERANK, turbo_rerank_options};
 use turbo_analysis::{ModelRef, Span};
 use turbo_analysis_embed::SourcePassage;
 
-use crate::api::{
-    Failure, Result, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_UNSUPPORTED_OPTION, field,
-};
+use crate::api::{Failure, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_UNSUPPORTED_OPTION, field};
 use crate::deadline::Deadline;
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
     RerankAndHighlightRequest, RerankAndHighlightResponse, RerankCandidateInputProto, RerankHighlightMode,
     RerankedCandidateProto, SemanticHighlightSpanProto,
 };
-use crate::results::{MAX_RERANK_ITEMS, f32s, model_to_proto, over};
+use crate::results::{MAX_RERANK_ITEMS, model_to_proto, over};
 use crate::state::State;
-use crate::stream::run::read_output;
+use crate::tasks::score_rerank_batches;
 
 fn bad(msg: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, msg)
@@ -133,46 +130,9 @@ pub(crate) async fn rerank_and_highlight(
             stride: req_c.stride,
         };
         let _docs = loaded_c.metrics.track_docs(req_c.candidates.len(), Some(loaded_c.device));
-        let slot = held.slot();
-        let max_batch = (slot.info.max_batch as usize).max(1);
-        if max_batch > MAX_RERANK_ITEMS as usize {
-            return Err(Failure::new(TURBO_E_CAPACITY, 0, "invalid session max_batch"));
-        }
-
-        let q_view = turbo_text { ptr: req_c.query.as_ptr().cast(), len: req_c.query.len() as u64 };
-        let mut logits = Vec::with_capacity(req_c.candidates.len());
-        for chunk in req_c.candidates.chunks(max_batch) {
-            crate::priority::check_before_exec(&deadline_c, &loaded_c.metrics)?;
-            let pairs: Vec<turbo_text_pair> = chunk
-                .iter()
-                .map(|c| turbo_text_pair {
-                    query: q_view,
-                    passage: turbo_text { ptr: c.text.as_ptr().cast(), len: c.text.len() as u64 },
-                })
-                .collect();
-            slot.session.write_pairs(&pairs, &rerank_opts)?;
-            crate::priority::check_before_exec(&deadline_c, &loaded_c.metrics)?;
-            loaded_c.metrics.record_batch_size(pairs.len());
-            state_c.stream.runs.fetch_add(1, Ordering::Relaxed);
-            let output = slot.session.run()?;
-            let (dim, dtype, bytes) = read_output(&output, pairs.len())?;
-            drop(output);
-            if dtype != TURBO_DTYPE_F32 || (dim != 1 && dim != 2) {
-                return Err(Failure::new(
-                    TURBO_E_INTERNAL,
-                    0,
-                    format!("unexpected rerank output shape: dim={dim}, dtype={dtype}"),
-                ));
-            }
-            let vals = f32s(&bytes);
-            if dim == 1 {
-                logits.extend_from_slice(&vals);
-            } else {
-                for &[neg, pos] in vals.as_chunks::<2>().0 {
-                    logits.push(pos - neg);
-                }
-            }
-        }
+        let passages: Vec<&str> = req_c.candidates.iter().map(|c| c.text.as_str()).collect();
+        let logits =
+            score_rerank_batches(&state_c, &loaded_c, held.slot(), &req_c.query, &passages, &rerank_opts, &deadline_c)?;
         drop(held);
 
         let mut results = Vec::with_capacity(req_c.candidates.len());

@@ -177,9 +177,10 @@ hold something besides white space (`INVALID_ARGUMENT`) and at most 8,192
 bytes (`TURBO_E_CAPACITY`). A graph with no chunk or sentence vectors, or
 with every row empty, is refused with `INVALID_ARGUMENT`; vectors of a
 model that is not loaded at that dimension are refused with
-`TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`) naming the model, and a model
-whose sessions are all held answers `TURBO_E_BUSY`. The query text is the
-caller's own and is not returned.
+`TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`) naming the model; requests wait on
+the model's session pool up to `grpc-timeout` (`DEADLINE_EXCEEDED`), and a
+model whose session priority queue is full answers `TURBO_E_BUSY`. The query
+text is the caller's own and is not returned.
 
 ## ListOutputFormats and FormatDocument
 

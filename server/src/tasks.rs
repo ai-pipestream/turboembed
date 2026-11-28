@@ -13,8 +13,8 @@ use turbo::{TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK};
 pub use embed::EmbedModel;
 pub(crate) use qa::infer_qa;
 pub use qa::{QaModel, qa_options};
-pub(crate) use rerank::infer_rerank;
 pub use rerank::rerank_options;
+pub(crate) use rerank::{infer_rerank, score_rerank_batches};
 
 /// Peeks at a bundle directory's manifest task before runtime creation,
 /// so the device is selected for the bundle's own task. A manifest that

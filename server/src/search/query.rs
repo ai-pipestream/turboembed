@@ -1,12 +1,10 @@
 //! Hybrid query AST execution, Reciprocal Rank Fusion (`1 / (k + rank)`),
-//! `turbo-query` filter extraction, parent expansion, cross-encoder reranking,
-//! `MatchedSpan` attribution, and `DocumentHeat` generation (`#1221`).
+//! `turbo-query` filter extraction, parent expansion, `MatchedSpan`
+//! attribution, and `DocumentHeat` generation (`#1221`, `#2609`).
 
 use std::collections::{BTreeMap, HashMap};
 
-use turbo::{TURBO_TASK_RERANK, turbo_rerank_options, turbo_text, turbo_text_pair};
 use turbo_query::FilterKind;
-use turbo_vector_index::{Normalization, Space};
 
 use crate::api::Result;
 use crate::proto::search::query_node::Clause;
@@ -16,34 +14,92 @@ use crate::proto::search::{
     TermClause, TermMatchMode,
 };
 use crate::search::clauses::{
-    MAX_TOP_K, bounded_top_k, eval_filter_clause, eval_late_clause, eval_phrase_clause, eval_sparse_clause,
-    eval_term_clause,
+    MAX_TOP_K, bounded_top_k, eval_filter_clause, eval_late_clause, eval_phrase_clause, eval_semantic_clause,
+    eval_sparse_clause, eval_term_clause,
 };
-use crate::search::registry::{
-    CompiledDense, HybridIndex, ScoreMap, bad_arg, parse_space, shared_query_profile, verify_embed_bundle_matches_space,
-};
-use crate::state::State;
+use crate::search::registry::{HybridIndex, ScoreMap, bad_arg, parse_space, shared_query_profile};
 
-pub(crate) fn execute_search(
+pub(crate) type RankedRow = (u32, f64, Vec<MatchedSpan>);
+
+pub(crate) enum SearchStep {
+    Done(SearchResponse),
+    NeedsRerank {
+        resolved_index: String,
+        query_text: String,
+        ranked: Vec<RankedRow>,
+        passages: Vec<String>,
+        analyzed_query_terms: Vec<String>,
+        extracted_filters: Vec<ExtractedFilterProto>,
+    },
+}
+
+pub(crate) fn validate_search_header(req: &SearchRequest) -> Result<(usize, Option<String>)> {
+    let top_k = bounded_top_k(req.top_k, 10)?;
+    let rerank_query = resolve_rerank_query(req)?;
+    Ok((top_k, rerank_query))
+}
+
+pub(crate) fn empty_search_response(resolved_index: String) -> SearchResponse {
+    SearchResponse {
+        resolved_index,
+        hits: Vec::new(),
+        document_heat: Vec::new(),
+        analyzed_query_terms: Vec::new(),
+        extracted_filters: Vec::new(),
+    }
+}
+
+pub(crate) fn collect_semantic_query_texts<'a>(
+    node: &'a QueryNode,
+    has_embed_bundle: bool,
+    chunk_len: usize,
+    out: &mut Vec<&'a str>,
+) -> Result<()> {
+    let Some(clause) = &node.clause else {
+        return Err(bad_arg("QueryNode.clause must be set"));
+    };
+    match clause {
+        Clause::Semantic(c) => {
+            bounded_top_k(c.top_k, chunk_len.max(1))?;
+            if c.query_vector.is_empty() && !c.query_text.is_empty() && has_embed_bundle {
+                if let Some(s) = &c.query_space {
+                    parse_space(Some(s))?;
+                }
+                out.push(&c.query_text);
+            }
+        }
+        Clause::Boost(b) => {
+            let child = b.child.as_deref().ok_or_else(|| bad_arg("BoostClause.child is required"))?;
+            if !b.boost.is_finite() || b.boost < 0.0 {
+                return Err(bad_arg(format!("BoostClause.boost must be finite and >= 0, got {}", b.boost)));
+            }
+            collect_semantic_query_texts(child, has_embed_bundle, chunk_len, out)?;
+        }
+        Clause::Join(JoinClause { op, fusion, children, .. }) if !children.is_empty() => {
+            JoinOperator::try_from(*op).map_err(|_| bad_arg(format!("invalid JoinOperator {op}")))?;
+            FusionStrategy::try_from(*fusion).map_err(|_| bad_arg(format!("invalid FusionStrategy {fusion}")))?;
+            for ch in children {
+                collect_semantic_query_texts(ch, has_embed_bundle, chunk_len, out)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub(crate) fn retrieve_candidates(
     resolved_index: String,
     ix: &HybridIndex,
-    state: &State,
-    req: SearchRequest,
-) -> Result<SearchResponse> {
-    let top_k = bounded_top_k(req.top_k, 10)?;
-    let cand_k = top_k.saturating_mul(4).min(MAX_TOP_K);
-    let rerank_query = resolve_rerank_query(&req)?;
-
+    req: &SearchRequest,
+    top_k: usize,
+    rerank_query: Option<String>,
+    embedded_queries: &HashMap<String, Vec<f32>>,
+) -> Result<SearchStep> {
     if ix.chunks.is_empty() {
-        return Ok(SearchResponse {
-            resolved_index,
-            hits: Vec::new(),
-            document_heat: Vec::new(),
-            analyzed_query_terms: Vec::new(),
-            extracted_filters: Vec::new(),
-        });
+        return Ok(SearchStep::Done(empty_search_response(resolved_index)));
     }
 
+    let cand_k = top_k.saturating_mul(4).min(MAX_TOP_K);
     let mut analyzed_query_terms = Vec::new();
     let mut extracted_filters = Vec::new();
     let mut top_nodes: Vec<ScoreMap> = Vec::new();
@@ -107,7 +163,7 @@ pub(crate) fn execute_search(
             query_text: String::new(),
             top_k: cand_k as u32,
         };
-        top_nodes.push(eval_semantic_clause(ix, state, &sem)?);
+        top_nodes.push(eval_semantic_clause(ix, &sem, embedded_queries)?);
     }
 
     if let Some(ast) = &req.query_ast {
@@ -116,7 +172,7 @@ pub(crate) fn execute_search(
         {
             narrowing_filters.push(eval_filter_clause(ix, fc));
         } else {
-            top_nodes.push(eval_node(ix, state, ast, cand_k)?);
+            top_nodes.push(eval_node(ix, ast, cand_k, embedded_queries)?);
         }
     }
 
@@ -132,7 +188,7 @@ pub(crate) fn execute_search(
         ScoreMap::new()
     };
 
-    if !top_nodes_were_empty(&req, &analyzed_query_terms) && !narrowing_filters.is_empty() {
+    if !top_nodes_were_empty(req, &analyzed_query_terms) && !narrowing_filters.is_empty() {
         for nf in &narrowing_filters {
             combined.retain(|row, (_, spans)| {
                 if let Some((_, f_spans)) = nf.get(row) {
@@ -145,17 +201,42 @@ pub(crate) fn execute_search(
         }
     }
 
-    let mut ranked: Vec<(u32, f64, Vec<MatchedSpan>)> =
-        combined.into_iter().map(|(r, (s, spans))| (r, s, spans)).collect();
+    let mut ranked: Vec<RankedRow> = combined.into_iter().map(|(r, (s, spans))| (r, s, spans)).collect();
     ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     ranked.truncate(top_k);
 
-    if let Some(q_text) = rerank_query.as_deref()
+    if let Some(query_text) = rerank_query
         && !ranked.is_empty()
     {
-        rerank_candidates(ix, state, &req.rerank_bundle, q_text, &mut ranked)?;
+        let passages = ranked.iter().map(|&(r, _, _)| ix.chunks[r as usize].text.clone()).collect();
+        return Ok(SearchStep::NeedsRerank {
+            resolved_index,
+            query_text,
+            ranked,
+            passages,
+            analyzed_query_terms,
+            extracted_filters,
+        });
     }
 
+    Ok(SearchStep::Done(materialize_search_response(
+        resolved_index,
+        ix,
+        req,
+        ranked,
+        analyzed_query_terms,
+        extracted_filters,
+    )))
+}
+
+pub(crate) fn materialize_search_response(
+    resolved_index: String,
+    ix: &HybridIndex,
+    req: &SearchRequest,
+    ranked: Vec<RankedRow>,
+    analyzed_query_terms: Vec<String>,
+    extracted_filters: Vec<ExtractedFilterProto>,
+) -> SearchResponse {
     let expand_parent = req.parent_expansion.as_ref().is_some_and(|p| p.enabled);
     let max_parent_tokens = req.parent_expansion.as_ref().map_or(0, |p| p.max_parent_tokens as usize);
 
@@ -217,7 +298,7 @@ pub(crate) fn execute_search(
         .collect();
     document_heat.sort_by(|a, b| b.max_score.total_cmp(&a.max_score).then_with(|| a.doc_id.cmp(&b.doc_id)));
 
-    Ok(SearchResponse { resolved_index, hits, document_heat, analyzed_query_terms, extracted_filters })
+    SearchResponse { resolved_index, hits, document_heat, analyzed_query_terms, extracted_filters }
 }
 
 fn top_nodes_were_empty(req: &SearchRequest, analyzed_query_terms: &[String]) -> bool {
@@ -248,12 +329,17 @@ fn extract_ast_query_text(node: &QueryNode) -> Option<String> {
     }
 }
 
-fn eval_node(ix: &HybridIndex, state: &State, node: &QueryNode, default_k: usize) -> Result<ScoreMap> {
+fn eval_node(
+    ix: &HybridIndex,
+    node: &QueryNode,
+    default_k: usize,
+    embedded_queries: &HashMap<String, Vec<f32>>,
+) -> Result<ScoreMap> {
     let Some(clause) = &node.clause else {
         return Err(bad_arg("QueryNode.clause must be set"));
     };
     match clause {
-        Clause::Semantic(c) => eval_semantic_clause(ix, state, c),
+        Clause::Semantic(c) => eval_semantic_clause(ix, c, embedded_queries),
         Clause::Term(c) => eval_term_clause(ix, c),
         Clause::Phrase(c) => eval_phrase_clause(ix, c, default_k),
         Clause::Sparse(c) => eval_sparse_clause(ix, c, default_k),
@@ -265,7 +351,7 @@ fn eval_node(ix: &HybridIndex, state: &State, node: &QueryNode, default_k: usize
             if !boost.is_finite() || *boost < 0.0 {
                 return Err(bad_arg(format!("BoostClause.boost must be finite and >= 0, got {boost}")));
             }
-            let mut m = eval_node(ix, state, child_node, default_k)?;
+            let mut m = eval_node(ix, child_node, default_k, embedded_queries)?;
             for (score, spans) in m.values_mut() {
                 *score *= f64::from(*boost);
                 for sp in spans {
@@ -284,84 +370,11 @@ fn eval_node(ix: &HybridIndex, state: &State, node: &QueryNode, default_k: usize
             let k_val = if *rrf_k <= 0.0 || !rrf_k.is_finite() { 60.0 } else { f64::from(*rrf_k) };
             let mut maps = Vec::with_capacity(children.len());
             for ch in children {
-                maps.push(eval_node(ix, state, ch, default_k)?);
+                maps.push(eval_node(ix, ch, default_k, embedded_queries)?);
             }
             Ok(fuse_score_maps(&maps, join_op, strat, k_val))
         }
     }
-}
-
-fn eval_semantic_clause(ix: &HybridIndex, state: &State, c: &SemanticClause) -> Result<ScoreMap> {
-    let k = bounded_top_k(c.top_k, ix.chunks.len().max(1))?;
-    let (q_space, q_vec) = if !c.query_vector.is_empty() {
-        let sp = parse_space(c.query_space.as_ref())
-            .map_err(|f| bad_arg(format!("SemanticClause.query_space: {}", f.message)))?;
-        (sp, c.query_vector.clone())
-    } else if !c.query_text.is_empty() && !ix.spec.embed_bundle.is_empty() {
-        let sp = match &c.query_space {
-            Some(s) => parse_space(Some(s))?,
-            None => ix.space.clone(),
-        };
-        let vec = embed_query_text(state, &ix.spec.embed_bundle, &ix.space, &c.query_text)?;
-        (sp, vec)
-    } else {
-        return Err(bad_arg("SemanticClause requires query_vector with query_space, or query_text with embed_bundle"));
-    };
-
-    let mut out = ScoreMap::new();
-    match &ix.dense {
-        CompiledDense::Empty => {
-            if q_space != ix.space {
-                return Err(bad_arg("query_space does not match index SpaceSpec"));
-            }
-            if q_vec.len() != ix.space.dim as usize {
-                return Err(bad_arg(format!(
-                    "query_vector has dimension {}, index holds {}",
-                    q_vec.len(),
-                    ix.space.dim
-                )));
-            }
-        }
-        CompiledDense::Flat(vec_ix) => {
-            let hits = vec_ix.top_k(&q_space, &q_vec, k).map_err(|e| bad_arg(e.to_string()))?;
-            for h in hits {
-                let chunk_row = *vec_ix.meta(h.row);
-                let ch = &ix.chunks[chunk_row as usize];
-                out.insert(
-                    chunk_row,
-                    (
-                        f64::from(h.score),
-                        vec![MatchedSpan {
-                            source: "dense".into(),
-                            label: ix.space.model.id.clone(),
-                            span: Some(SpanProto { start: ch.span.start, end: ch.span.end }),
-                            score: h.score,
-                        }],
-                    ),
-                );
-            }
-        }
-        CompiledDense::Quantized(q_ix) => {
-            let hits = q_ix.top_k(&q_space, &q_vec, k).map_err(|e| bad_arg(e.to_string()))?;
-            for h in hits {
-                let chunk_row = *q_ix.meta(h.row);
-                let ch = &ix.chunks[chunk_row as usize];
-                out.insert(
-                    chunk_row,
-                    (
-                        f64::from(h.score),
-                        vec![MatchedSpan {
-                            source: "turboquant".into(),
-                            label: format!("{}b", q_ix.config().bits),
-                            span: Some(SpanProto { start: ch.span.start, end: ch.span.end }),
-                            score: h.score,
-                        }],
-                    ),
-                );
-            }
-        }
-    }
-    Ok(out)
 }
 
 fn fuse_score_maps(maps: &[ScoreMap], op: JoinOperator, fusion: FusionStrategy, rrf_k: f64) -> ScoreMap {
@@ -401,80 +414,4 @@ fn fuse_score_maps(maps: &[ScoreMap], op: JoinOperator, fusion: FusionStrategy, 
         out.insert(row, (fused, all_spans));
     }
     out
-}
-
-fn embed_query_text(state: &State, bundle_name: &str, space: &Space, text: &str) -> Result<Vec<f32>> {
-    let loaded = verify_embed_bundle_matches_space(state, bundle_name, space)?;
-    let held = loaded.take()?;
-    let slot = held.slot();
-    let output_dim = if space.dim != loaded.model_info.dim { space.dim } else { 0 };
-    let normalize = match space.normalization {
-        Normalization::Unit => turbo::TURBO_NORMALIZE_L2,
-        Normalization::None => turbo::TURBO_NORMALIZE_NONE,
-    };
-    let opts = turbo::turbo_embed_options {
-        struct_size: size_of::<turbo::turbo_embed_options>() as u32,
-        truncate: 0,
-        max_tokens: 0,
-        prompt_role: turbo::TURBO_PROMPT_QUERY,
-        normalize,
-        pooling: 0,
-        output_dim,
-        quantization: 0,
-        int8_ranges: std::ptr::null(),
-        layers: 0,
-        layer_alone: 0,
-    };
-    let views = [turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 }];
-    slot.session.write_text(&views, &opts)?;
-    let res = slot.session.run()?;
-    let info = res.info()?;
-    let bytes = res.read(info.bytes)?;
-    Ok(bytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect())
-}
-
-fn rerank_candidates(
-    ix: &HybridIndex,
-    state: &State,
-    bundle_name: &str,
-    query_text: &str,
-    ranked: &mut [(u32, f64, Vec<MatchedSpan>)],
-) -> Result<()> {
-    let (_, loaded) = state.ready(bundle_name, "")?;
-    if loaded.task != TURBO_TASK_RERANK {
-        return Err(bad_arg(format!("bundle `{bundle_name}` is not a TASK_RERANK model")));
-    }
-    let held = loaded.take()?;
-    let slot = held.slot();
-    let opts = turbo_rerank_options {
-        struct_size: size_of::<turbo_rerank_options>() as u32,
-        query_tokens: 0,
-        max_tokens: 0,
-        stride: 0,
-    };
-    let q_view = turbo_text { ptr: query_text.as_ptr().cast(), len: query_text.len() as u64 };
-    let pairs: Vec<turbo_text_pair> = ranked
-        .iter()
-        .map(|&(r, _, _)| {
-            let p = ix.chunks[r as usize].text.as_str();
-            turbo_text_pair { query: q_view, passage: turbo_text { ptr: p.as_ptr().cast(), len: p.len() as u64 } }
-        })
-        .collect();
-    slot.session.write_pairs(&pairs, &opts)?;
-    let res = slot.session.run()?;
-    let info = res.info()?;
-    let bytes = res.read(info.bytes)?;
-    for ((row, score, spans), b) in ranked.iter_mut().zip(bytes.as_chunks::<4>().0) {
-        let rr = f32::from_le_bytes(*b);
-        *score = f64::from(rr);
-        let ch = &ix.chunks[*row as usize];
-        spans.push(MatchedSpan {
-            source: "rerank".into(),
-            label: bundle_name.to_owned(),
-            span: Some(SpanProto { start: ch.span.start, end: ch.span.end }),
-            score: rr,
-        });
-    }
-    ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-    Ok(())
 }
