@@ -14,7 +14,8 @@
 //!   the SHA-256 of its user and terms, so servers that record at once
 //!   never rewrite each other's file. On Windows a revoke renames the file
 //!   to `<key>.json.revoked.<pid>.<n>` before deleting it (#2450); the
-//!   listing passes such a name over and removes one that was left behind.
+//!   listing passes such a name over and removes a leftover, but leaves a
+//!   fresh empty reservation alone so a rename onto it is not refused (#2573).
 //!
 //! Every file is written whole under a temporary name and renamed into
 //! place, so a reader never sees part of one and two servers writing the
@@ -119,9 +120,7 @@ impl DataDir {
                 if let Some(a) = record(&e.path(), &name)? {
                     found.push((a.accepted_at, name, a));
                 }
-            } else if self.writable && is_revoked_name(&name) {
-                // Left by a revoke that could not delete it, or that stopped
-                // before it did. One still held stays for a later listing.
+            } else if self.writable && is_revoked_name(&name) && !is_fresh_reservation(&e.path()) {
                 let _ = fs::remove_file(e.path());
             }
         }
@@ -221,6 +220,13 @@ fn is_revoked_name(name: &str) -> bool {
     name.contains(".json.revoked.")
 }
 
+/// Whether `path` is an empty reservation still waiting for its rename.
+fn is_fresh_reservation(path: &Path) -> bool {
+    const FRESH: std::time::Duration = std::time::Duration::from_secs(60);
+    fs::metadata(path)
+        .is_ok_and(|m| m.len() == 0 && m.modified().ok().and_then(|t| t.elapsed().ok()).is_none_or(|d| d < FRESH))
+}
+
 fn create_new(p: &Path) -> std::io::Result<()> {
     fs::OpenOptions::new().write(true).create_new(true).open(p).map(drop)
 }
@@ -255,31 +261,48 @@ fn reserve(
 /// Removes the record `path` by renaming it to a name the listing passes
 /// over and then removing that name with `remove`; whether there was one.
 /// A Windows delete without POSIX semantics leaves the name in place until
-/// the last handle to the file closes, and meanwhile every open of that
-/// name, and every rename onto it, is refused (#2450). A rename frees the
-/// name at once, also while a reader has the file open, so only the renamed
-/// file can be left pending its delete.
+/// the last handle closes (#2450). A rename frees it at once, also while a
+/// reader has the file open. If the reserved target is held or pending its
+/// delete, the rename takes a fresh reserved name (#2573).
 fn remove_by_rename(path: &Path, remove: impl FnOnce(&Path) -> std::io::Result<()>) -> Result<bool, ZooError> {
-    // The rename replaces only our empty reservation.
-    let Some(gone) = reserve(path, create_new, is_delete_pending)? else { return Ok(false) };
-    // The record pending another server's delete is waited out as a read does.
-    if let Err(e) = open_past_pending_delete(|| fs::rename(path, &gone), is_delete_pending) {
-        let _ = fs::remove_file(&gone); // Our empty reservation, not a record.
-        return if is_gone(&e) {
-            Ok(false)
-        } else {
-            Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() })
-        };
+    remove_by_rename_with(path, create_new, is_delete_pending, |from, to| fs::rename(from, to), remove)
+}
+
+fn remove_by_rename_with(
+    path: &Path,
+    mut create: impl FnMut(&Path) -> std::io::Result<()>,
+    pending: impl Fn(&std::io::Error) -> bool,
+    mut rename: impl FnMut(&Path, &Path) -> std::io::Result<()>,
+    remove: impl FnOnce(&Path) -> std::io::Result<()>,
+) -> Result<bool, ZooError> {
+    let mut tries = 1;
+    loop {
+        let Some(gone) = reserve(path, &mut create, &pending)? else { return Ok(false) };
+        match rename(path, &gone) {
+            Ok(()) => {
+                // Done at the rename; a failed delete is left for a listing.
+                if let Err(e) = remove(&gone)
+                    && !is_gone(&e)
+                {
+                    eprintln!("turbo-kserve: revoke: {}: {e}; left for a later listing to remove", gone.display());
+                }
+                return Ok(true);
+            }
+            Err(e) if is_gone(&e) => {
+                let _ = fs::remove_file(&gone);
+                return Ok(false);
+            }
+            Err(e) if pending(&e) && tries < PENDING_TRIES => {
+                let _ = fs::remove_file(&gone);
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            Err(e) => {
+                let _ = fs::remove_file(&gone);
+                return Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() });
+            }
+        }
     }
-    // The rename revoked the acceptance for every reader, so a delete that
-    // fails does not fail the revoke, and it is not retried: the record
-    // name is free, and the next listing removes what is left here.
-    if let Err(e) = remove(&gone)
-        && !is_gone(&e)
-    {
-        eprintln!("turbo-kserve: revoke: {}: {e}; left for a later listing to remove", gone.display());
-    }
-    Ok(true)
 }
 
 fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {

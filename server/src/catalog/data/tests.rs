@@ -353,3 +353,94 @@ fn a_reservation_passes_over_a_name_pending_its_delete_but_not_a_lasting_denial(
     let real = reserve(&path, create_new, is_delete_pending).unwrap().unwrap();
     assert_eq!(fs::read(&real).unwrap(), b"");
 }
+
+/// A reserved target refused as Windows refuses a held or delete-pending
+/// file (code 5) is passed over; the record is renamed onto a fresh name.
+#[test]
+fn a_rename_refused_on_its_reserved_name_takes_a_fresh_one() {
+    let dir = scratch("revoke-held-target");
+    let data = DataDir::open(&*dir).unwrap();
+    let r = Requirement::of(Licence::CcBySa40).unwrap();
+    let alice: UserId = "alice".parse().unwrap();
+    data.record(&alice, &r, &Shown::default()).unwrap();
+    let (key, path) = data.key(&alice, &r);
+    let mut asked = Vec::new();
+    let pending = |e: &std::io::Error| is_delete_pending_code(e.raw_os_error());
+    assert!(
+        remove_by_rename_with(
+            &path,
+            create_new,
+            pending,
+            |from, to| {
+                asked.push(to.to_path_buf());
+                // Refuse this name on every try, as a held target does.
+                if to == asked[0] { Err(std::io::Error::from_raw_os_error(5)) } else { fs::rename(from, to) }
+            },
+            |p| fs::remove_file(p),
+        )
+        .unwrap()
+    );
+    assert_eq!(asked.len(), 2, "the first reserved name is passed over");
+    assert_ne!(asked[0], asked[1]);
+    assert!(!asked[0].exists(), "the refused reservation is not left behind");
+    assert!(record(&path, &key).unwrap().is_none());
+    assert!(!data.acceptances().unwrap().has(&alice, &r));
+}
+
+/// A lasting denial on every reserved name still surfaces, as a real access
+/// problem on the record must.
+#[test]
+fn a_rename_denied_on_every_reserved_name_still_surfaces() {
+    let dir = scratch("revoke-denied-target");
+    let data = DataDir::open(&*dir).unwrap();
+    let r = Requirement::of(Licence::CcBySa40).unwrap();
+    let alice: UserId = "alice".parse().unwrap();
+    data.record(&alice, &r, &Shown::default()).unwrap();
+    let (key, path) = data.key(&alice, &r);
+    let mut tries = 0;
+    let e = remove_by_rename_with(
+        &path,
+        create_new,
+        |e| is_delete_pending_code(e.raw_os_error()),
+        |_, _| {
+            tries += 1;
+            Err(std::io::Error::from_raw_os_error(5))
+        },
+        |p| fs::remove_file(p),
+    )
+    .unwrap_err();
+    assert!(matches!(e, ZooError::Io { .. }), "{e}");
+    assert_eq!(tries, 20);
+    assert!(record(&path, &key).unwrap().is_some(), "the record is still there");
+}
+
+/// A listing must not remove a fresh empty reservation (that would leave
+/// the name pending its delete for the rename). A stale empty leftover is
+/// still swept, as is a renamed record that could not be deleted.
+#[test]
+fn a_listing_leaves_a_fresh_empty_reservation_and_sweeps_a_stale_one() {
+    let dir = scratch("revoke-fresh");
+    let data = DataDir::open(&*dir).unwrap();
+    let r = Requirement::of(Licence::CcBySa40).unwrap();
+    let bob: UserId = "bob".parse().unwrap();
+    data.record(&bob, &r, &Shown::default()).unwrap();
+    let (bob_key, _) = data.key(&bob, &r);
+    let fresh = data.records().join("fresh.json.revoked.1.0");
+    let stale = data.records().join("stale.json.revoked.1.0");
+    fs::write(&fresh, b"").unwrap();
+    fs::write(&stale, b"").unwrap();
+    let now = std::time::SystemTime::now();
+    fs::File::options().write(true).open(&fresh).unwrap().set_modified(now).unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&stale)
+        .unwrap()
+        .set_modified(now - std::time::Duration::from_secs(3600))
+        .unwrap();
+    let a = data.acceptances().unwrap();
+    assert!(a.has(&bob, &r));
+    let mut want = vec![bob_key, "fresh.json.revoked.1.0".into()];
+    want.sort();
+    assert_eq!(names(&data), want);
+    assert!(!stale.exists());
+}
