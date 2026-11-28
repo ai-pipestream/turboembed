@@ -388,9 +388,9 @@ async fn accelerator_teacher_distils_with_cpu_parity() {
         let vectors: Vec<_> = bytes.as_chunks::<4>().0.iter().map(|x| f32::from_le_bytes(*x)).collect();
         assert_eq!(vectors.len(), 48);
         assert!(vectors.iter().all(|x| x.is_finite()));
-        let rows: Vec<_> = vectors.chunks_exact(16).collect();
+        let (rows, []) = vectors.as_chunks::<16>() else { unreachable!("checked vector length") };
         // PCA axes can flip. Compare retrieval geometry, not raw coordinates.
-        pairs.push([(0, 1), (0, 2), (1, 2)].map(|(i, j)| rows[i].iter().zip(rows[j]).map(|(a, b)| a * b).sum::<f32>()));
+        pairs.push([(0, 1), (0, 2), (1, 2)].map(|(i, j)| rows[i].iter().zip(rows[j].iter()).map(|(a, b)| a * b).sum::<f32>()));
     }
     for (cpu, device) in pairs[0].into_iter().zip(pairs[1]) {
         assert!((cpu - device).abs() <= 0.01, "static similarity: CPU {cpu}, {want} {device}");
