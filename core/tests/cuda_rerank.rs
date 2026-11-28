@@ -83,11 +83,11 @@ fn rerank_transfers_on_cuda_add_up_over_window_batches() {
 }
 
 /// `Reranker::open` stays on the CPU in a build with CUDA, and the CUDA
-/// cell reports rerank as experimental.
+/// EXACT cell names the measured record on the device it backs.
 #[test]
-fn open_stays_on_the_cpu_and_cuda_reports_experimental() {
+fn open_stays_on_the_cpu_and_cuda_reports_rerank_evidence() {
     let _t = turn();
-    let Some(device) = cuda_device("open_stays_on_the_cpu_and_cuda_reports_experimental") else { return };
+    let Some(device) = cuda_device("open_stays_on_the_cpu_and_cuda_reports_rerank_evidence") else { return };
     let f = fixture();
     let r = Reranker::open(&f.dir, 1).unwrap();
     assert_eq!(r.backend(), "cpu");
@@ -106,8 +106,21 @@ fn open_stays_on_the_cpu_and_cuda_reports_experimental() {
         )
     };
     assert_eq!(rc, 0);
-    // TURBO_CAP_EXPERIMENTAL, turbo.h.
-    assert_eq!(cap.status, 1);
+    let info = rt.info(device);
+    if cfg!(target_os = "linux")
+        && common::field(&info.arch) == "rtx4080super"
+        && common::field(&info.name) == "NVIDIA GeForce RTX 4080 SUPER"
+    {
+        assert_eq!(cap.status, turbo::backend::TURBO_CAP_SUPPORTED);
+        assert_eq!(
+            common::field(&cap.benchmark),
+            "rtx4080super.cuda.rerank.exact.bge-reranker-base-dce186f3.66bbe5e2ff6e.json"
+        );
+        assert_eq!(cap.speed_ratio, (1542.372519_f64 / 2392.982597) as f32);
+    } else {
+        assert_eq!(cap.status, turbo::backend::TURBO_CAP_EXPERIMENTAL);
+        assert_eq!(cap.speed_ratio, 0.0);
+    }
 }
 
 /// With `TURBO_TEST_RERANK_BUNDLES` naming real rerank bundles, comma

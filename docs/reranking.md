@@ -129,10 +129,14 @@ the backend leaves the hidden states in device memory, the CLS states
 classifier and the largest window logit then run on the host in F64, as on
 the CPU. The result is a host buffer, and `d2h_bytes` counts the copy.
 
-`Reranker::open` stays on the CPU even when a device is present: every
-rerank cell ties as experimental, so device order would otherwise pick a
-GPU. Name a device with `open_with`. The rerank cells on CUDA and Level
-Zero are EXPERIMENTAL until a compiled benchmark record backs them.
+`Reranker::open` selects the CPU explicitly. Name a device with `open_with`.
+On Linux the RTX 4080 SUPER CUDA cell at EXACT (F32) reports SUPPORTED.
+Both measured rerankers below meet the upstream score bound and have TEI
+timings on identical requests. The capability query takes a device, task and
+precision. It cites the newer BGE record and reports its library p50 divided by
+TEI p50 (1542.37 / 2392.98 ms, about 0.645). MODEL and FASTEST have no matching
+rerank timing. Level Zero, Metal and CPU have no pinned reference-program
+timing in their rerank records and remain EXPERIMENTAL.
 
 ### Parity
 

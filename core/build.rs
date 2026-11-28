@@ -1,4 +1,4 @@
-//! Embeds the benchmark records (benchmarks/records/*.json) in every
+//! Embeds the embedding, rerank and QA benchmark records in every
 //! build, and builds the backends written in another language for the
 //! features that are on.
 //!
@@ -47,7 +47,9 @@ mod build_cuda;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    records();
+    for dir in ["records", "rerank", "qa"] {
+        records(dir);
+    }
     kernels_id();
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         // The library's install name, which a program linked to it loads it
@@ -327,12 +329,12 @@ fn hailo() {
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
 }
 
-/// Every `*.json` file in benchmarks/records/ as `EMBEDDED`, its file name
-/// and its text, sorted by name, in OUT_DIR/records.rs. The core parses
+/// Every `*.json` file in the benchmark directory, its file name
+/// and its text, sorted by name, in OUT_DIR/<dir>.rs. The core parses
 /// them when a capability is first asked for; the library opens no file.
-fn records() {
+fn records(directory: &str) {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    let dir = manifest.join("../benchmarks/records");
+    let dir = manifest.join("../benchmarks").join(directory);
     // A directory: cargo looks at every file under it.
     println!("cargo:rerun-if-changed={}", dir.display());
     let mut files: Vec<PathBuf> =
@@ -346,17 +348,17 @@ fn records() {
         let path = path.to_str().unwrap_or_else(|| fail(&format!("{}: not UTF-8", p.display())));
         // A record that is not even JSON fails the build here, by name; the
         // core's parser judges the rest when a capability is asked for.
-        let bytes = std::fs::read(&p).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: {e}")));
-        let text =
-            std::str::from_utf8(&bytes).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: not UTF-8: {e}")));
+        let bytes = std::fs::read(&p).unwrap_or_else(|e| fail(&format!("benchmarks/{directory}/{name}: {e}")));
+        let text = std::str::from_utf8(&bytes)
+            .unwrap_or_else(|e| fail(&format!("benchmarks/{directory}/{name}: not UTF-8: {e}")));
         if let Err(e) = serde_json::from_str::<serde_json::Value>(text) {
-            fail(&format!("benchmarks/records/{name}: not JSON: {e}"));
+            fail(&format!("benchmarks/{directory}/{name}: not JSON: {e}"));
         }
         code.push_str(&format!("    ({name:?}, include_str!({path:?})),\n"));
     }
     code.push_str("];\n");
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    std::fs::write(out.join("records.rs"), code).unwrap();
+    std::fs::write(out.join(format!("{directory}.rs")), code).unwrap();
 }
 
 /// A source's object in OUT_DIR, named for its whole path under core/

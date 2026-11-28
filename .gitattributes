@@ -20,3 +20,6 @@ analysis/eval/tests/data/** -text
 # ends and no byte order mark (bench/tests/tree/eval_records.rs). A clone
 # with core.autocrlf must not rewrite them on the way out.
 analysis/eval/records/** -text
+
+# Rerank timing receipts are paired with upstream score parity by SHA-256.
+benchmarks/rerank/*.json text eol=lf
