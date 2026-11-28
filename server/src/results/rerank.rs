@@ -9,7 +9,8 @@ use turbo_analysis_embed::Reranked;
 
 use super::{MAX_RERANK_ITEMS, Wire, mismatched, model_from_proto, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
-use crate::proto::result::RerankScoresResult;
+use crate::proto::result::{InputTokens, RerankScoresResult};
+use crate::stream::run::input_tokens;
 
 /// The reranked shortlist unbundled from its layer: the source layer's
 /// name and the instance the key names (two instances of one layer
@@ -25,6 +26,7 @@ pub struct RerankScores {
     pub instance: String,
     pub items: Vec<u32>,
     pub scores: Vec<f32>,
+    pub query: Option<InputTokens>,
 }
 
 impl RerankScores {
@@ -36,6 +38,7 @@ impl RerankScores {
             instance: r.source.name.to_string(),
             items: r.items.iter().map(|i| i.get() as u32).collect(),
             scores: r.scores.clone(),
+            query: r.query_tokens.map(|t| input_tokens(&t)),
         }
     }
 
@@ -54,6 +57,11 @@ impl RerankScores {
         if self.items.iter().collect::<BTreeSet<_>>().len() != self.items.len() {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "reranked items must be unique"));
         }
+        if let Some(q) = &self.query
+            && q.seen.is_some_and(|seen| q.kept > seen || q.truncated != (q.kept < seen))
+        {
+            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "rerank query token counts disagree"));
+        }
         Ok(())
     }
 }
@@ -68,6 +76,7 @@ impl Wire for RerankScores {
             source_instance: self.instance.clone(),
             item: self.items.clone(),
             score: self.scores.clone(),
+            query: self.query,
         }
     }
 
@@ -85,6 +94,7 @@ impl Wire for RerankScores {
             instance: msg.source_instance.clone(),
             items: msg.item.clone(),
             scores: msg.score.clone(),
+            query: msg.query,
         };
         out.check()?;
         Ok(out)
@@ -109,6 +119,7 @@ mod tests {
             items: vec![turbo_analysis::Ix::new(7), turbo_analysis::Ix::new(2)],
             scores: vec![9.5, 1.25],
             model: model(),
+            query_tokens: Some(turbo::turbo_row_tokens { kept: 4, seen: 20, seen_known: 1, truncated: 1 }),
         };
         r.check().unwrap();
         r
@@ -125,6 +136,8 @@ mod tests {
         assert_eq!(back.items, r.items.iter().map(|i| i.get() as u32).collect::<Vec<_>>());
         assert_eq!(back.scores, r.scores);
         assert_eq!(back.instance, "candidates");
+        assert_eq!(back.query, m.query);
+        assert_eq!(back.query.unwrap().seen, Some(20));
     }
 
     #[test]
@@ -137,6 +150,7 @@ mod tests {
                 items: vec![turbo_analysis::Ix::new(0)],
                 scores: vec![1.0],
                 model: model(),
+                query_tokens: None,
             };
             r.check().unwrap();
             let m = RerankScores::new(&r);
@@ -150,6 +164,7 @@ mod tests {
             items: vec![turbo_analysis::Ix::new(3)],
             scores: vec![2.0],
             model: model(),
+            query_tokens: None,
         };
         let m = RerankScores::new(&r);
         assert_eq!(m.instance, "");
@@ -180,6 +195,10 @@ mod tests {
             m.item[1] = 7;
         });
         assert!(e.message.contains("unique"), "{e:?}");
+        let e = refused(|m| {
+            m.query = Some(InputTokens { kept: 5, seen: Some(4), truncated: false });
+        });
+        assert!(e.message.contains("counts"), "{e:?}");
         // Equal scores are allowed; the layer's own check agrees.
         let mut msg = RerankScores::new(&sample()).to_msg();
         msg.score[1] = msg.score[0];

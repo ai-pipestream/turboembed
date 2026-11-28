@@ -70,19 +70,22 @@ impl Annotator for RerankAnnotator {
             .zip(inputs)
             .map(|(texts, (_, _, shortlist))| {
                 let texts = texts?;
-                let values = match &scores {
+                let (values, query_tokens) = match &scores {
                     Ok(scores) => {
                         let values = scores.scores[offset..offset + texts.len()].to_vec();
+                        let query = scores.query_tokens.get(offset).copied();
                         offset += texts.len();
-                        values
+                        (values, query)
                     }
                     Err(_) => {
                         let pairs: Vec<_> =
                             texts.iter().map(|text| (shortlist.query.as_str(), text.as_str())).collect();
-                        session.score(&pairs, self.options).map_err(|e| failure(e.message))?.scores
+                        let scored = session.score(&pairs, self.options).map_err(|e| failure(e.message))?;
+                        let query = scored.query_tokens.first().copied();
+                        (scored.scores, query)
                     }
                 };
-                self.finish(shortlist, values)
+                self.finish(shortlist, values, query_tokens)
             })
             .collect()
     }
@@ -114,7 +117,12 @@ impl RerankAnnotator {
         Ok(texts)
     }
 
-    fn finish(&self, shortlist: &Shortlist<Levels>, scores: Vec<f32>) -> Result<(Reranked<Levels>,), Error> {
+    fn finish(
+        &self,
+        shortlist: &Shortlist<Levels>,
+        scores: Vec<f32>,
+        query_tokens: Option<turbo::turbo_row_tokens>,
+    ) -> Result<(Reranked<Levels>,), Error> {
         let mut order: Vec<usize> = (0..scores.len()).collect();
         order.sort_by(|&a, &b| scores[b].total_cmp(&scores[a]).then(a.cmp(&b)));
         let result = Reranked {
@@ -122,6 +130,7 @@ impl RerankAnnotator {
             items: order.iter().map(|&i| shortlist.items[i]).collect(),
             scores: order.iter().map(|&i| scores[i]).collect(),
             model: self.model.clone(),
+            query_tokens,
         };
         result.check().map_err(failure)?;
         Ok((result,))

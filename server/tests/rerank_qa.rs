@@ -405,6 +405,37 @@ async fn rerank_and_qa_refusals_report_status_code_and_field() {
 }
 
 #[tokio::test]
+async fn rerank_response_reports_query_truncation() {
+    let bundle = make_rerank_bundle("PAIR_BERT");
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![cfg(&bundle.0, "rerank", 1)], MAX, Serve::default())
+        .await
+        .unwrap();
+    s.load().await.unwrap();
+    let mut k = common::kserve(&s).await;
+    let query = "query ".repeat(20);
+    let resp = k
+        .model_infer(ModelInferRequest {
+            model_name: "rerank".into(),
+            inputs: vec![bytes_input("query", &[1], &[query.as_bytes()]), bytes_input("passages", &[1], &[b"p"])],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(resp.parameters["truncated_query"], param(ParameterChoice::BoolParam(true)));
+    let kept = match &resp.parameters["query_tokens"].parameter_choice {
+        Some(ParameterChoice::Int64Param(n)) => *n,
+        other => panic!("query_tokens: {other:?}"),
+    };
+    let seen = match &resp.parameters["query_tokens_seen"].parameter_choice {
+        Some(ParameterChoice::Int64Param(n)) => *n,
+        other => panic!("query_tokens_seen: {other:?}"),
+    };
+    assert!(seen > kept, "seen {seen}, kept {kept}");
+    s.stop().await;
+}
+
+#[tokio::test]
 async fn select_refuses_a_cpu_for_rerank_and_qa() {
     if turbo_kserve::api::version().split_whitespace().skip(1).any(|b| b != "cpu") {
         return;

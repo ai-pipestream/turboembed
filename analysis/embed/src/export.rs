@@ -130,6 +130,12 @@ impl<L: Layer> LayerCodec for Reranked<L> {
         w.str(&self.model.id)?;
         w.str(&self.model.revision)?;
         w.str(&self.model.sha256)?;
+        if let Some(t) = self.query_tokens {
+            w.u32(t.kept);
+            w.u32(t.seen);
+            w.u32(t.seen_known);
+            w.u32(t.truncated);
+        }
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _: &Document) -> Result<Self, ExportError> {
@@ -137,8 +143,13 @@ impl<L: Layer> LayerCodec for Reranked<L> {
         let (source, items) = get_items(&mut r, cx)?;
         let scores = (0..items.len()).map(|_| r.u32().map(f32::from_bits)).collect::<Result<Vec<_>, _>>()?;
         let model = ModelRef { id: r.string()?, revision: r.string()?, sha256: r.string()? };
+        let query_tokens = if r.is_done() {
+            None
+        } else {
+            Some(turbo::turbo_row_tokens { kept: r.u32()?, seen: r.u32()?, seen_known: r.u32()?, truncated: r.u32()? })
+        };
         done(&r, "reranked")?;
-        checked(Reranked { source, items, scores, model }, cx)
+        checked(Reranked { source, items, scores, model, query_tokens }, cx)
     }
 }
 

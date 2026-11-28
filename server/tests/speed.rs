@@ -174,6 +174,7 @@ fn result_kinds_encode_and_decode_as_fast_per_byte_as_vector_and_span_messages()
         source_instance: "candidates".into(),
         item: (0..items as u32).rev().collect(),
         score: (0..items).map(|i| items as f32 - i as f32).collect(),
+        query: None,
     };
     let (rv, rdec) = span_msg(rerank.encoded_len() / 6);
     let (rn, br) = alternating(

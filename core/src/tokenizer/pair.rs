@@ -32,6 +32,18 @@ impl Tokenizer {
         max_tokens: u32,
         stride: u32,
     ) -> Result<Vec<PairWindow>> {
+        self.encode_pair_counted(query, passage, query_tokens, max_tokens, stride).map(|(windows, _)| windows)
+    }
+
+    /// The pair windows and what the query came to against its budget.
+    pub(crate) fn encode_pair_counted(
+        &self,
+        query: &str,
+        passage: &str,
+        query_tokens: u32,
+        max_tokens: u32,
+        stride: u32,
+    ) -> Result<(Vec<PairWindow>, RowTokens)> {
         let r = self
             .rerank
             .as_ref()
@@ -51,7 +63,9 @@ impl Tokenizer {
             max_tokens: query_tokens,
             prompt: PromptRole::None,
         };
-        let query = self.encode(query, opts)?;
+        let mut query_ids = Vec::new();
+        let query_count = self.encode_into_counted(query, opts, &mut query_ids)?;
+        let query = query_ids;
         let passage = self.encode(passage, Encode { truncation: Truncation::None, max_tokens: u32::MAX, ..opts })?;
         let room = max_tokens as usize - specials as usize - query.len();
         let step = if stride == 0 { room } else { stride as usize };
@@ -86,7 +100,7 @@ impl Tokenizer {
             }
             start += step;
         }
-        Ok(result)
+        Ok((result, query_count))
     }
 
     pub(super) fn check_pair_reference(&self, bundle: &Bundle) -> Result<()> {

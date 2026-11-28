@@ -306,6 +306,9 @@ counter above the largest `int64_t` is clamped to it.
 
 | `stage_count` | the same |
 | `truncated_rows` | `TASK_EMBED` text requests only: how many rows were cut at the session's token limit (`turbo_session_row_tokens`, issue #2511); absent for token requests, whose rows are the caller's own |
+| `query_tokens` | `TASK_RERANK` only: query tokens kept in each pair (`turbo_session_row_tokens`) |
+| `query_tokens_seen` | `TASK_RERANK` only: query tokens in the whole query, when known |
+| `truncated_query` | `TASK_RERANK` only: `bool_param`, true when the query was cut at its token budget |
 | `stage.<stage>` | `stage[i]` for each i below `stage_count`, keyed by the task's stage constant without `TURBO_` (`stage.EMBED_STAGE_TOKENIZE`), valued by the `TURBO_STAGE_*` constant without `TURBO_` (`STAGE_HOST`) |
 
 ## Parameters

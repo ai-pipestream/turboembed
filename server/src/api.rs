@@ -244,7 +244,7 @@ impl Session {
         check(|e| unsafe { turbo_embed_write_text(self.as_ptr(), texts.as_ptr(), count, opts, e) })
     }
 
-    /// What the last write_text made of each text (#2511).
+    /// What the last text or pair write made of each text or query (#2511).
     pub fn row_tokens(&self, rows: usize) -> Result<Vec<turbo_row_tokens>> {
         let mut out = vec![turbo_row_tokens::default(); rows];
         let mut n = 0u32;

@@ -354,7 +354,10 @@ rpcs from the same messages.
   layer's items in relevance order, one finite descending score per item,
   the source key's instance name (two instances of one layer index
   different items under one type), and the scoring model's identity, not
-  a bare float.
+  a bare float. `query` (`InputTokens`, issue #2511) says how much of the
+  shared rerank query the model read: `kept`, `seen` when known, and
+  `truncated`. It is absent on a legacy result or one where no rerank run
+  was made.
 - `ExtractionResult`: the `Answers` layer of extractive QA (issue #745):
   ranked answer spans over a text view with scores, normalized
   probabilities, and the abstention score and its probability; an empty

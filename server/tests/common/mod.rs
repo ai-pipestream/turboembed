@@ -160,6 +160,7 @@ pub fn reranked() -> Reranked<Chunks> {
         items: vec![Ix::new(7), Ix::new(2)],
         scores: vec![9.5, 1.25],
         model: model_ref(),
+        query_tokens: Some(turbo::turbo_row_tokens { kept: 4, seen: 20, seen_known: 1, truncated: 1 }),
     };
     r.check().unwrap();
     r

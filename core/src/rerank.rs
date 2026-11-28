@@ -27,6 +27,8 @@ pub struct RerankScores {
     pub model: RerankIdentity,
     /// Raw logits in input order, max-pooled across passage windows.
     pub scores: Vec<f32>,
+    /// What each pair's query came to against its token budget, in input order.
+    pub query_tokens: Vec<turbo_row_tokens>,
 }
 
 /// Where and how a [`Reranker`] session runs.
@@ -187,6 +189,7 @@ impl Reranker {
     /// an empty result. Ties can be broken by the original candidate index.
     pub fn score(&mut self, pairs: &[(&str, &str)], options: RerankOptions) -> Result<RerankScores> {
         let mut scores = Vec::with_capacity(pairs.len());
+        let mut query_tokens = Vec::with_capacity(pairs.len());
         let opts = turbo_rerank_options {
             struct_size: size_of::<turbo_rerank_options>() as u32,
             query_tokens: options.query_tokens,
@@ -200,6 +203,22 @@ impl Reranker {
             let mut result = OwnedResult(ptr::null_mut());
             unsafe {
                 check(turbo_rerank_write_pairs(self.session, inputs.as_ptr(), inputs.len() as u32, &opts, &mut e), &e)?;
+                let start = query_tokens.len();
+                query_tokens.resize(start + batch.len(), turbo_row_tokens::default());
+                let mut n = 0u32;
+                check(
+                    turbo_session_row_tokens(
+                        self.session,
+                        query_tokens[start..].as_mut_ptr(),
+                        batch.len() as u32,
+                        &mut n,
+                        &mut e,
+                    ),
+                    &e,
+                )?;
+                if n as usize != batch.len() {
+                    return Err(Error::new(INTERNAL, "rerank query token count mismatch"));
+                }
                 check(turbo_session_run(self.session, &mut result.0, &mut e), &e)?;
                 let mut info: turbo_result_info = std::mem::zeroed();
                 info.struct_size = size_of::<turbo_result_info>() as u32;
@@ -220,7 +239,7 @@ impl Reranker {
                 }
             }
         }
-        Ok(RerankScores { model: self.identity.clone(), scores })
+        Ok(RerankScores { model: self.identity.clone(), scores, query_tokens })
     }
 }
 /// The index of the first device whose backend is `name`.

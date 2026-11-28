@@ -668,10 +668,11 @@ int32_t turbo_session_get_info(turbo_session *s, turbo_session_info *out, turbo_
 int32_t turbo_embed_write_text(turbo_session *s, const turbo_text *texts, uint32_t count,
                                const turbo_embed_options *opts, turbo_error *err);
 
-/* What turbo_embed_write_text made of one text against max_tokens. A row
- * that was cut says so here: under TURBO_TRUNCATE_MODEL, RIGHT or LEFT a
- * text longer than the limit is embedded from the tokens kept alone, and
- * the vector by itself does not show it. */
+/* What turbo_embed_write_text made of one text against max_tokens, or
+ * what turbo_rerank_write_pairs made of one pair's query. A row that was
+ * cut says so here: under TURBO_TRUNCATE_MODEL, RIGHT or LEFT a text
+ * longer than the limit is embedded from the tokens kept alone, and the
+ * vector or score by itself does not show it. */
 typedef struct turbo_row_tokens {
     uint32_t kept;         /* tokens in the row, special tokens included */
     uint32_t seen;         /* tokens the whole text gives, special tokens included;
@@ -682,12 +683,13 @@ typedef struct turbo_row_tokens {
     uint32_t truncated;    /* 1 when part of the text is not in the row */
 } turbo_row_tokens;
 
-/* One entry per row of the session's last turbo_embed_write_text, in the
- * order of its texts; *count is the rows written. TURBO_E_INVALID_STATE
- * when the last write was not turbo_embed_write_text, TURBO_E_CAPACITY
- * when capacity is under the rows written. Valid until the next write,
- * across turbo_session_run and the result's release; TURBO_E_BUSY while
- * a result holds the session, like every session call. */
+/* One entry per row of the session's last turbo_embed_write_text or
+ * turbo_rerank_write_pairs, in the order of its texts or pairs; for
+ * rerank these are the query counts. *count is the rows written.
+ * TURBO_E_INVALID_STATE when the last write was neither of those,
+ * TURBO_E_CAPACITY when capacity is under the rows written. Valid until
+ * the next write, across turbo_session_run and the result's release;
+ * TURBO_E_BUSY while a result holds the session, like every session call. */
 int32_t turbo_session_row_tokens(turbo_session *s, turbo_row_tokens *out, uint32_t capacity,
                                  uint32_t *count, turbo_error *err);
 
