@@ -91,7 +91,8 @@ fn base_embedding_progress_finishes_exactly_at_actual_rows() {
     for n in [1, 63 * batch + 1, 64 * batch, 64 * batch + 1] {
         let kept: Vec<_> = (0..n).collect();
         let mut events = Vec::new();
-        let rows = embed_entries(&model, &info, &base.manifest, &kept, h, &mut |done| events.push(done)).unwrap();
+        let rows =
+            embed_entries(&model.borrow(), &info, &base.manifest, &kept, h, &mut |done| events.push(done)).unwrap();
         assert_eq!(rows.len(), n * h);
         assert!(rows.iter().all(|x| x.is_finite()));
         let bytes: Vec<_> = rows.iter().flat_map(|x| x.to_le_bytes()).collect();

@@ -26,10 +26,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod paths;
 mod skip;
+mod teacher;
+use paths::paths;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use skip::SkipRule;
+pub use teacher::stage_with_teacher;
 use turbo::bundle::Bundle;
 use turbo::manifest::{Manifest, PromptRole, SpecialRole, Truncation};
 use turbo::safetensors::{self, Dtype};
@@ -58,46 +62,6 @@ pub struct Spec {
 
 /// The table's tensor name in the weights file, as Model2Vec names it.
 const EMBEDDINGS: &str = "embeddings";
-
-/// Where the recipe puts things.
-struct Paths {
-    weights: String,
-    tokenizer: String,
-    texts: String,
-    reference: String,
-}
-
-fn paths(recipe: &Recipe) -> Result<Paths> {
-    let m = &recipe.manifest;
-    let arts = m["artifacts"].as_array().ok_or("manifest.artifacts: missing")?;
-    let [art] = arts.as_slice() else {
-        return Err("a static recipe has one artifact, its table".into());
-    };
-    let files = art["files"].as_array().ok_or("manifest.artifacts[0].files: missing")?;
-    let [weights] = files.as_slice() else {
-        return Err("a static recipe's artifact is one file".into());
-    };
-    let names = &art["tensor_names"];
-    if *names != json!({ "static_embeddings": EMBEDDINGS }) {
-        return Err(format!(
-            "manifest.artifacts[0].tensor_names: the tool writes static_embeddings {EMBEDDINGS:?} alone"
-        ));
-    }
-    if art.get("produced_by").is_some() {
-        return Err("manifest.artifacts[0].produced_by: written by the tool, not the recipe".into());
-    }
-    let s = |p: &str| recipe.str_at(p).map(str::to_owned);
-    let p = Paths {
-        weights: weights.as_str().ok_or("manifest.artifacts[0].files[0]: not a string")?.to_owned(),
-        tokenizer: s("/tokenizer/file")?,
-        texts: s("/static_embedding/quality/texts")?,
-        reference: s("/reference/file")?,
-    };
-    for f in [&p.weights, &p.tokenizer, &p.texts, &p.reference] {
-        crate::check_rel(f)?;
-    }
-    Ok(p)
-}
 
 fn spec(recipe: &Recipe) -> Result<&Spec> {
     let s = recipe.distill.as_ref().ok_or("the recipe has no distill block")?;
@@ -139,12 +103,35 @@ pub fn stage_with(
     terms: &[String],
     observe: &mut dyn FnMut(Progress),
 ) -> Result<Staged> {
+    stage_impl(recipe, base_dir, bundle, terms, observe, None)
+}
+
+fn stage_impl(
+    recipe: &Recipe,
+    base_dir: &Path,
+    bundle: &Path,
+    terms: &[String],
+    observe: &mut dyn FnMut(Progress),
+    teacher: Option<api::ModelRef<'_>>,
+) -> Result<Staged> {
     let spec = spec(recipe)?;
     let p = paths(recipe)?;
     if bundle.join("manifest.json").exists() {
         return Err(format!("{} already holds a bundle; make it into an empty directory", bundle.display()));
     }
     let base = Bundle::open(base_dir).map_err(|e| format!("base bundle: {}", e.message))?;
+    let (rt, ctx, owned);
+    let model = match teacher {
+        Some(model) => model,
+        None => {
+            rt = api::Runtime::create()?;
+            ctx = rt.cpu()?;
+            owned = ctx.load(base_dir)?;
+            owned.borrow()
+        }
+    };
+    let info = model.info()?;
+    teacher::verify_manifest(&info, &base.manifest_sha256)?;
     let bm = &base.manifest;
     let arch =
         bm.architecture.as_ref().ok_or("base bundle: no architecture; a static model is distilled from an encoder")?;
@@ -190,11 +177,6 @@ pub fn stage_with(
     let (n_added, total) = (added.entries.len(), vocab_size + added.entries.len());
     observe(Progress::Kept { kept: kept.len(), vocab_size, added: n_added, refused: added.refused.len() });
 
-    // Every kept entry through the base encoder.
-    let rt = api::Runtime::create()?;
-    let ctx = rt.cpu()?;
-    let model = ctx.load(base_dir)?;
-    let info = model.info()?;
     let n = kept.len() + n_added;
     let mut rows =
         embed_entries(&model, &info, bm, &kept, h, &mut |done| observe(Progress::Embedded { done, total: n }))?;
@@ -317,7 +299,7 @@ fn template_text(bm: &Manifest) -> String {
 /// Each kept entry as the base model sees it alone: the template's
 /// special tokens around it, mean-pooled, not normalized. [kept, h].
 fn embed_entries(
-    model: &api::Model,
+    model: &api::ModelRef<'_>,
     info: &turbo::turbo_model_info,
     bm: &Manifest,
     kept: &[usize],

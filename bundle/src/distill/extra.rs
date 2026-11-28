@@ -118,7 +118,7 @@ pub(super) fn extend(tokenizer_json: &[u8], vocab_size: usize, entries: &[String
 /// Each term's row as the base encoder gives it: its pieces between the
 /// template's special tokens, mean-pooled, not normalized. [terms, h].
 pub(super) fn embed(
-    model: &api::Model,
+    model: &api::ModelRef<'_>,
     info: &turbo::turbo_model_info,
     bm: &Manifest,
     pieces: &[Vec<i32>],
