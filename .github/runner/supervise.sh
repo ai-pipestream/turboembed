@@ -29,11 +29,25 @@ while :; do
   # A runner killed mid-job stays registered until GitHub drops it, so
   # each configuration gets a name of its own.
   # shellcheck disable=SC2086
-  jit=$(gh api -X POST "repos/$repo/actions/runners/generate-jitconfig" \
+  reply=$(gh api -X POST "repos/$repo/actions/runners/generate-jitconfig" \
           -f name="$name-$(date +%s)" -F runner_group_id=1 $label_args \
-          --jq .encoded_jit_config) || { sleep 30; continue; }
+          --jq '"\(.runner.id) \(.encoded_jit_config)"') || { sleep 30; continue; }
+  id=${reply%% *} jit=${reply#* }
   # shellcheck disable=SC2086
   printf 'RUNNER_JITCONFIG=%s\n' "$jit" \
     | $docker run --rm --name "$name" --env-file /dev/stdin "$@" "$image"
+  status=$?
+  # 125 is a failure of docker run itself: the container did not start,
+  # so the runner took no job and GitHub still lists it. Each such
+  # registration counts toward the repository's limit of runners, so it is
+  # removed, and the next try waits a minute instead of registering
+  # another at once.
+  if [ "$status" -eq 125 ]; then
+    echo "turbo-ci: $name: the container did not start; removing runner $id" >&2
+    gh api -X DELETE "repos/$repo/actions/runners/$id" >/dev/null 2>&1 \
+      || echo "turbo-ci: $name: runner $id could not be removed" >&2
+    sleep 60
+    continue
+  fi
   sleep 2
 done
