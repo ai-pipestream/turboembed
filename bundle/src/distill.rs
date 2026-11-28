@@ -1,44 +1,45 @@
 //! A static model distilled from a bundle: one vector per vocabulary
 //! entry, so a text's vector is a lookup and a mean (docs/static.md).
 //!
-//! The base bundle's encoder, run by the library on the CPU, embeds every
-//! vocabulary entry alone, between the base template's special tokens,
-//! mean-pooled over the row with no normalization. Entries the recipe's
-//! `skip` pattern matches whole are left out (BERT's `[unused..]` ids,
-//! which no text gives). The rest are reduced to `pca_dims` by PCA, each
-//! row centred by the mean of the kept rows and projected on the
-//! covariance's leading eigenvectors, then weighted by Zipf's law: the
-//! entry of rank r among the kept ones, in id order, is taken to occur with
-//! probability p_r proportional to 1 / (r + 2), and its row is scaled by
-//! sif / (sif + p_r). That is Model2Vec's distillation (its `distill` with
-//! mean pooling and no vocabulary of its own), written here so the library
-//! that serves the base model is the one that distils it. As Model2Vec
-//! does, the special tokens a text never gives ([CLS], [SEP], [MASK]: every
-//! special token but the padding and the unknown one) are left out too.
-//! An entry left out keeps a row of zeros, so the table has a row per id
-//! of the base tokenizer, and the file holds the table alone: no weights.
+//! The base bundle's encoder, run by the library at exact F32 precision on
+//! the chosen device, embeds every vocabulary entry alone, between the base
+//! template's special tokens, mean-pooled over the row with no
+//! normalization. Entries the recipe's `skip` pattern matches whole are left
+//! out (BERT's `[unused..]` ids, which no text gives). The rest are reduced
+//! to `pca_dims` by PCA, each row centred by the mean of the kept rows and
+//! projected on the covariance's leading eigenvectors, then weighted by
+//! Zipf's law: the entry of rank r among the kept ones, in id order, is
+//! taken to occur with probability p_r proportional to 1 / (r + 2), and its
+//! row is scaled by sif / (sif + p_r). That is Model2Vec's distillation (its
+//! `distill` with mean pooling and no vocabulary of its own), written here
+//! so the library that serves the base model is the one that distils it. As
+//! Model2Vec does, the special tokens a text never gives ([CLS], [SEP],
+//! [MASK]: every special token but the padding and the unknown one) are left
+//! out too. An entry left out keeps a row of zeros, so the table has a row
+//! per id of the base tokenizer, and the file holds the table alone: no
+//! weights.
 //!
 //! The cost is measured on the texts the recipe carries, with groups of
 //! texts that mean the same thing: how often each text's nearest other text
 //! is of its group, with the base model and with the static one, and how
 //! the two models' similarities rank against each other over every pair.
 
-use std::fs;
 use std::path::{Path, PathBuf};
 
 mod skip;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
 use skip::SkipRule;
 use turbo::bundle::Bundle;
-use turbo::manifest::{Manifest, PromptRole, SpecialRole, Truncation};
-use turbo::safetensors::{self, Dtype};
-use turbo::tokenizer::{Encode, Tokenizer};
-use turbo::{TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN};
+use turbo::manifest::{Manifest, SpecialRole};
+use turbo::tokenizer::Tokenizer;
+use turbo::{TURBO_EMBED_STAGE_ENCODE, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN};
 
 use crate::Result;
 use crate::api;
 use crate::recipe::Recipe;
+
+pub use crate::api::Device;
 
 /// The recipe's `distill` block.
 #[derive(Debug, Deserialize)]
@@ -57,17 +58,17 @@ pub struct Spec {
 }
 
 /// The table's tensor name in the weights file, as Model2Vec names it.
-const EMBEDDINGS: &str = "embeddings";
+pub(super) const EMBEDDINGS: &str = "embeddings";
 
 /// Where the recipe puts things.
-struct Paths {
-    weights: String,
-    tokenizer: String,
-    texts: String,
-    reference: String,
+pub(super) struct Paths {
+    pub(super) weights: String,
+    pub(super) tokenizer: String,
+    pub(super) texts: String,
+    pub(super) reference: String,
 }
 
-fn paths(recipe: &Recipe) -> Result<Paths> {
+pub(super) fn paths(recipe: &Recipe) -> Result<Paths> {
     let m = &recipe.manifest;
     let arts = m["artifacts"].as_array().ok_or("manifest.artifacts: missing")?;
     let [art] = arts.as_slice() else {
@@ -99,7 +100,7 @@ fn paths(recipe: &Recipe) -> Result<Paths> {
     Ok(p)
 }
 
-fn spec(recipe: &Recipe) -> Result<&Spec> {
+pub(super) fn spec(recipe: &Recipe) -> Result<&Spec> {
     let s = recipe.distill.as_ref().ok_or("the recipe has no distill block")?;
     if !(s.sif_coefficient > 0.0 && s.sif_coefficient < 1.0) {
         return Err(format!("distill.sif_coefficient {} is not in (0, 1)", s.sif_coefficient));
@@ -113,30 +114,46 @@ fn spec(recipe: &Recipe) -> Result<&Spec> {
     Ok(s)
 }
 
-/// Write the static bundle's files into `bundle`: the base's tokenizer
-/// file, the table, the quality texts, and beside the table its report,
-/// which `seal` reads; and `reference/cases.json`, what the reference
-/// script reads.
+/// Write the static bundle's files into `bundle` on the CPU: the base's
+/// tokenizer file, the table, the quality texts, and beside the table its
+/// report, which [`seal`] reads.
 pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
-    stage_with(recipe, base_dir, bundle, &[], &mut progress::print).map(|_| ())
+    stage_on(recipe, base_dir, bundle, &[], &Device::Cpu, &mut progress::print).map(|_| ())
 }
 
-/// What a staged distillation added beyond the base's vocabulary.
+/// What a staged distillation ran and added beyond the base's vocabulary.
 #[derive(Debug, Default)]
 pub struct Staged {
+    /// The backend that executed the base encoder (`"cpu"`, `"cuda"`, ...).
+    pub backend: String,
+    /// Where `TURBO_EMBED_STAGE_ENCODE` ran (`TURBO_STAGE_HOST` or `TURBO_STAGE_DEVICE`).
+    pub encode_stage: u32,
     /// The learned terms' entries, as ids from the base's vocab_size up.
     pub added: Vec<String>,
     /// The learned terms left out, and why.
     pub refused: Vec<(String, Refusal)>,
 }
 
-/// [`stage`], with `terms` added to the vocabulary (extra.rs) and each
+/// [`stage`], with `terms` added to the vocabulary (`extra.rs`) and each
 /// step reported to `observe`.
 pub fn stage_with(
     recipe: &Recipe,
     base_dir: &Path,
     bundle: &Path,
     terms: &[String],
+    observe: &mut dyn FnMut(Progress),
+) -> Result<Staged> {
+    stage_on(recipe, base_dir, bundle, terms, &Device::Cpu, observe)
+}
+
+/// [`stage_with`], running the base encoder on `device` with no fallback to
+/// another device.
+pub fn stage_on(
+    recipe: &Recipe,
+    base_dir: &Path,
+    bundle: &Path,
+    terms: &[String],
+    device: &Device,
     observe: &mut dyn FnMut(Progress),
 ) -> Result<Staged> {
     let spec = spec(recipe)?;
@@ -190,14 +207,16 @@ pub fn stage_with(
     let (n_added, total) = (added.entries.len(), vocab_size + added.entries.len());
     observe(Progress::Kept { kept: kept.len(), vocab_size, added: n_added, refused: added.refused.len() });
 
-    // Every kept entry through the base encoder.
+    // Every kept entry through the base encoder on `device`.
     let rt = api::Runtime::create()?;
-    let ctx = rt.cpu()?;
+    let ctx = rt.open(device)?;
     let model = ctx.load(base_dir)?;
     let info = model.info()?;
     let n = kept.len() + n_added;
-    let mut rows =
+    let (mut rows, entry_run) =
         embed_entries(&model, &info, bm, &kept, h, &mut |done| observe(Progress::Embedded { done, total: n }))?;
+    let backend = api::field(&entry_run.backend);
+    let encode_stage = entry_run.stage[TURBO_EMBED_STAGE_ENCODE];
     rows.extend(extra::embed(&model, &info, bm, &added.pieces, h, |done| {
         observe(Progress::Embedded { done: kept.len() + done, total: n })
     })?);
@@ -226,7 +245,10 @@ pub fn stage_with(
         .as_u64()
         .ok_or("manifest.static_embedding.max_length: missing")? as u32;
     let median = median_chars(&vocab);
-    let base_vecs = base_vectors(&model, &info, &texts)?;
+    let (base_vecs, quality_run) = base_vectors(&model, &info, &texts)?;
+    if api::field(&quality_run.backend) != backend || quality_run.stage[TURBO_EMBED_STAGE_ENCODE] != encode_stage {
+        return Err("quality texts did not run on the base encoder's device".into());
+    }
     let static_vecs: Vec<Vec<f64>> = match n_added {
         0 => texts
             .iter()
@@ -257,6 +279,7 @@ pub fn stage_with(
         "container": "host",
         "args": [
             format!("base={}@{}", bm.model.id, base.manifest_sha256),
+            format!("backend={backend}"),
             format!("rows={}", template_text(bm)),
             "pooling=mean".to_owned(),
             format!("skip={}", spec.skip),
@@ -277,14 +300,14 @@ pub fn stage_with(
     });
     let report_path = report_path(bundle, &p.weights);
     crate::fetch::write_atomic(&report_path, &serde_json::to_vec_pretty(&report).unwrap())?;
-    Ok(Staged { added: added.entries, refused: added.refused })
+    Ok(Staged { backend, encode_stage, added: added.entries, refused: added.refused })
 }
 
 pub(crate) fn turbo_version() -> String {
     unsafe { std::ffi::CStr::from_ptr(turbo::turbo_version()) }.to_string_lossy().into_owned()
 }
 
-fn report_path(bundle: &Path, weights: &str) -> PathBuf {
+pub(super) fn report_path(bundle: &Path, weights: &str) -> PathBuf {
     bundle.join(format!("{weights}.report.json"))
 }
 
@@ -323,7 +346,7 @@ fn embed_entries(
     kept: &[usize],
     h: usize,
     done: &mut dyn FnMut(usize),
-) -> Result<Vec<f64>> {
+) -> Result<(Vec<f64>, turbo::turbo_result_info)> {
     let id_of = |s: &str| bm.tokenizer.special_tokens.iter().find(|t| t.content == s).map(|t| t.id as i32);
     let template: Vec<Option<i32>> = bm
         .tokenizer
@@ -337,154 +360,33 @@ fn embed_entries(
     let o = api::options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
     let mut out = Vec::with_capacity(kept.len() * h);
     let mut vecs = vec![0f32; batch * h];
+    let mut last = None;
     for (c, chunk) in kept.chunks(batch).enumerate() {
         let ids: Vec<i32> = chunk.iter().flat_map(|&id| template.iter().map(move |t| t.unwrap_or(id as i32))).collect();
         let mask = vec![1i32; ids.len()];
         let n = chunk.len();
-        session.tokens(n as u32, seq as u32, &ids, &mask, &o, &mut vecs[..n * h])?;
+        last = Some(session.tokens(n as u32, seq as u32, &ids, &mask, &o, &mut vecs[..n * h])?);
         out.extend(vecs[..n * h].iter().map(|&v| v as f64));
         let completed = out.len() / h;
         if c % 64 == 63 || completed == kept.len() {
             done(completed);
         }
     }
-    Ok(out)
+    Ok((out, last.ok_or("kept entries: empty")?))
 }
 
 mod extra;
 pub mod from_base;
 mod math;
-mod progress;
+pub mod progress;
 mod quality;
+mod seal;
 #[cfg(test)]
 mod tests;
 
 pub use extra::Refusal;
 pub use progress::Progress;
 use quality::{base_vectors, quality_texts, static_ids};
+pub use seal::{check, seal};
 
-use math::{cosine, median_chars, pca, round4, spearman, static_vector, top1, vocabulary, write_table};
-
-/// Seal a staged bundle: the table's report fills `static_embedding` and
-/// the artifact's `produced_by`, and the tool writes the reference
-/// (static_reference.rs). Then the core loads the bundle on the CPU, and
-/// its vectors must match the reference's and the tool's own for the
-/// quality texts.
-pub fn seal(recipe: &mut Recipe, bundle: &Path) -> Result<()> {
-    spec(recipe)?;
-    let p = paths(recipe)?;
-    if bundle.join("manifest.json").exists() {
-        return Err(format!("{} already holds a bundle; make it into an empty directory", bundle.display()));
-    }
-    let read = |path: &Path| -> Result<Value> {
-        serde_json::from_slice(&fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?)
-            .map_err(|e| format!("{}: {e}", path.display()))
-    };
-    let table_report_path = report_path(bundle, &p.weights);
-    let table_report = read(&table_report_path)?;
-    let m = &mut recipe.manifest;
-    m["static_embedding"]["distilled_from"] = table_report["distilled_from"].clone();
-    m["static_embedding"]["quality"] = table_report["quality"].clone();
-    m["static_embedding"]["vocab_size"] = table_report["vocab_size"].clone();
-    let mut pb = json!({});
-    for key in ["tool", "tool_version", "container", "args", "reproducible"] {
-        pb[key] = table_report[key].clone();
-    }
-    m["artifacts"][0]["produced_by"] = pb;
-    // The report leaves the bundle, which lists every file in it; it is
-    // put back if the bundle does not seal, so the run can be repeated.
-    let kept: Vec<(PathBuf, Vec<u8>)> = [table_report_path]
-        .into_iter()
-        .map(|path| {
-            let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-            Ok((path, bytes))
-        })
-        .collect::<Result<_>>()?;
-    for (path, _) in &kept {
-        fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    }
-    let sealed = crate::static_reference::write(m, bundle).and_then(|produced_by| {
-        m["reference"]["produced_by"] = produced_by;
-        crate::seal::seal_manifest(m.clone(), bundle)?;
-        check(bundle, &table_report["quality"])
-    });
-    if let Err(e) = sealed {
-        let _ = fs::remove_file(bundle.join("manifest.json"));
-        let _ = fs::remove_file(bundle.join(&p.reference));
-        for (path, bytes) in &kept {
-            crate::fetch::write_atomic(path, bytes)?;
-        }
-        return Err(e);
-    }
-    println!("{}: verified", bundle.display());
-    Ok(())
-}
-
-/// The sealed bundle on the library's CPU device: every reference case
-/// to the bit (static_reference::check), and the quality texts within the
-/// F32 tolerance (docs/conformance.md) of the tool's own arithmetic in
-/// F64, ranking to the same static_top1.
-pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
-    crate::static_reference::check(bundle)?;
-    let b = Bundle::open(bundle).map_err(|e| e.message)?;
-    let m = &b.manifest;
-    let st = m.static_embedding.as_ref().ok_or("static_embedding: missing")?;
-    let k = m.embed().dim as usize;
-    let rt = api::Runtime::create()?;
-    let ctx = rt.cpu()?;
-    let model = ctx.load(bundle)?;
-    let info = model.info()?;
-    let session = model.session(info.max_batch, info.max_seq)?;
-    let o = api::options(0, 0);
-    let mut got = vec![0f32; k];
-    // The library's vectors are rounded as the table's dtype rounds them;
-    // the tool's own are not.
-    let close = |what: &str, got: &[f32], want: &[f64]| -> Result<()> {
-        let g: Vec<f64> = got.iter().map(|&v| v as f64).collect();
-        let cos = cosine(&g, want);
-        let diff = g.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f64, f64::max);
-        if cos < 0.9999 || diff > 1e-3 {
-            return Err(format!("{what}: cosine {cos}, largest difference {diff} from the library's vector"));
-        }
-        Ok(())
-    };
-
-    // The table as stored, and the tool's arithmetic on it.
-    let art = &m.artifacts[0];
-    let wbytes = b.read_verified(&art.files[0]).map_err(|e| e.message)?;
-    let wf = safetensors::File::parse(&art.files[0], &wbytes).map_err(|e| e.message)?;
-    let floats = |name: &str| -> Result<Vec<f32>> {
-        let t = wf.tensor(name).ok_or(format!("{}: no {name}", art.files[0]))?;
-        Ok(match t.dtype {
-            Dtype::F32 => t.f32s(),
-            Dtype::F16 => t.data.as_chunks::<2>().0.iter().map(|&c| half::f16::from_le_bytes(c).to_f32()).collect(),
-            _ => return Err(format!("{}: {name} is {}", art.files[0], t.dtype_name)),
-        })
-    };
-    let table = floats(EMBEDDINGS)?;
-    let tok = Tokenizer::load(&b).map_err(|e| e.message)?;
-    let quality_file = st.quality.as_ref().ok_or("static_embedding.quality: missing")?;
-    let texts = quality_texts(&bundle.join(&quality_file.texts))?;
-    let mut lib = Vec::with_capacity(texts.len());
-    // The bundle's own tokenizer applies the static rules itself.
-    let e = Encode {
-        add_special_tokens: true,
-        truncation: Truncation::Right,
-        max_tokens: st.max_length,
-        prompt: PromptRole::None,
-    };
-    for (i, t) in texts.iter().enumerate() {
-        let ids = tok.encode(&t.text, e).map_err(|e| e.message)?;
-        let mine = static_vector(&table, k, &ids);
-        session.texts(&[t.text.as_str()], &o, &mut got)?;
-        close(&format!("quality text {i}"), &got, &mine)?;
-        lib.push(got.iter().map(|&v| v as f64).collect::<Vec<f64>>());
-    }
-    let groups: Vec<u32> = texts.iter().map(|t| t.group).collect();
-    let recorded = quality["static_top1"].as_f64().ok_or("quality.static_top1: missing")?;
-    let measured = round4(top1(&lib, &groups));
-    if measured != recorded {
-        return Err(format!("the library's vectors rank static_top1 {measured}, the distillation measured {recorded}"));
-    }
-    Ok(())
-}
+use math::{median_chars, pca, round4, spearman, static_vector, top1, vocabulary, write_table};

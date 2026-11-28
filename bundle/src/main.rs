@@ -48,9 +48,10 @@ usage:
       A conversion whose files are absent is left out of the manifest
   turbo-bundle verify <bundle-dir>
       load a bundle the way a machine does and check every file
-  turbo-bundle distill <recipe.json> <base-bundle-dir> <bundle-dir>
-      distil a static model from the base bundle, write its reference,
-      then seal and verify (docs/static.md)";
+  turbo-bundle distill [--device <device>] <recipe.json> <base-bundle-dir> <bundle-dir>
+      distil a static model from the base bundle on <device> (cpu,
+      select, a device index, or <backend>[:<ordinal>]; cpu when omitted),
+      write its reference, then seal and verify (docs/static.md)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -145,11 +146,18 @@ fn run(args: &[&str]) -> Result<()> {
             }
             Ok(())
         }
-        ["distill", recipe, base, bundle] => {
-            let mut r = Recipe::load(Path::new(recipe))?;
-            distill::stage(&r, Path::new(base), Path::new(bundle))?;
-            distill::seal(&mut r, Path::new(bundle))
+        ["distill", "--device", device, recipe, base, bundle] => distill_cmd(Some(device), recipe, base, bundle),
+        ["distill", flag, recipe, base, bundle] if flag.starts_with("--device=") => {
+            distill_cmd(Some(&flag["--device=".len()..]), recipe, base, bundle)
         }
+        ["distill", recipe, base, bundle] => distill_cmd(None, recipe, base, bundle),
         _ => Err(USAGE.into()),
     }
+}
+
+fn distill_cmd(device: Option<&str>, recipe: &str, base: &str, bundle: &str) -> Result<()> {
+    let device = device.map(distill::Device::parse).transpose()?.unwrap_or_default();
+    let mut r = Recipe::load(Path::new(recipe))?;
+    distill::stage_on(&r, Path::new(base), Path::new(bundle), &[], &device, &mut distill::progress::print)?;
+    distill::seal(&mut r, Path::new(bundle))
 }

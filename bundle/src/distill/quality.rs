@@ -35,23 +35,25 @@ pub(super) fn quality_texts(path: &Path) -> Result<Vec<QualityText>> {
     Ok(texts)
 }
 
-/// The base model's own vectors for the texts, as its bundle says.
+/// The base model's own vectors for the texts, as its bundle says, and the
+/// last run's result summary.
 pub(super) fn base_vectors(
     model: &api::Model,
     info: &turbo::turbo_model_info,
     texts: &[QualityText],
-) -> Result<Vec<Vec<f64>>> {
+) -> Result<(Vec<Vec<f64>>, turbo::turbo_result_info)> {
     let d = info.dim as usize;
     let session = model.session(info.max_batch, info.max_seq)?;
     let o = api::options(0, 0);
     let mut out = Vec::with_capacity(texts.len());
     let mut buf = vec![0f32; info.max_batch as usize * d];
+    let mut last = None;
     for chunk in texts.chunks(info.max_batch as usize) {
         let t: Vec<&str> = chunk.iter().map(|q| q.text.as_str()).collect();
-        session.texts(&t, &o, &mut buf[..t.len() * d])?;
+        last = Some(session.texts(&t, &o, &mut buf[..t.len() * d])?);
         out.extend(buf[..t.len() * d].chunks_exact(d).map(|v| v.iter().map(|&x| x as f64).collect()));
     }
-    Ok(out)
+    Ok((out, last.ok_or("quality texts: empty")?))
 }
 
 /// A text's ids for the static model, from the base tokenizer, as

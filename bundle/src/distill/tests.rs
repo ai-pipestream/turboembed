@@ -1,5 +1,9 @@
 //! Static tokenization, term planning and progress through real tiny bundles.
 
+use std::fs;
+
+use serde_json::Value;
+
 use super::*;
 
 fn root() -> PathBuf {
@@ -91,7 +95,7 @@ fn base_embedding_progress_finishes_exactly_at_actual_rows() {
     for n in [1, 63 * batch + 1, 64 * batch, 64 * batch + 1] {
         let kept: Vec<_> = (0..n).collect();
         let mut events = Vec::new();
-        let rows = embed_entries(&model, &info, &base.manifest, &kept, h, &mut |done| events.push(done)).unwrap();
+        let (rows, _) = embed_entries(&model, &info, &base.manifest, &kept, h, &mut |done| events.push(done)).unwrap();
         assert_eq!(rows.len(), n * h);
         assert!(rows.iter().all(|x| x.is_finite()));
         let bytes: Vec<_> = rows.iter().flat_map(|x| x.to_le_bytes()).collect();
