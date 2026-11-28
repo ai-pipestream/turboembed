@@ -47,6 +47,7 @@ pub struct WordEncoder {
     width: usize,
     max_batch: usize,
     max_ranges: usize,
+    max_layers: u32,
     hidden: usize,
     /// The bundle's manifest digest, which names the model of its subwords.
     manifest: String,
@@ -83,28 +84,40 @@ struct Owner {
 const BARE: Encode =
     Encode { add_special_tokens: false, truncation: Truncation::None, max_tokens: u32::MAX, prompt: PromptRole::None };
 
+fn validate_taps(layers: u32, max_layers: u32, max_batch: u32) -> Result<()> {
+    if layers > 1 && max_layers == 0 {
+        return Err(Error::new(UNSUPPORTED_OPTION, "static_embedding has no encoder layers"));
+    }
+    if layers > 1 && (layers > max_layers || layers > max_batch) {
+        return Err(Error::new(INVALID_ARGUMENT, format!("{layers} layers: 1 to {}", max_layers.min(max_batch))));
+    }
+    Ok(())
+}
+
 impl WordEncoder {
     /// The encoder of the bundle at `dir`. A 0 in `o.max_batch` or
     /// `o.max_seq` is the bundle's; ranges are sized so a full batch of
     /// rows can be read one word a token.
     pub fn open(dir: &Path, o: &EncoderOptions) -> Result<WordEncoder> {
         let bundle = Bundle::open(dir)?;
+        Self::open_with(&bundle, o, |eo| Encoder::open(dir, eo))
+    }
+
+    /// Builds a [`WordEncoder`] from an already-opened [`Bundle`] and a
+    /// caller-supplied [`Encoder`] factory.
+    pub fn open_with(
+        bundle: &Bundle,
+        o: &EncoderOptions,
+        make_encoder: impl FnOnce(&EncoderOptions) -> Result<Encoder>,
+    ) -> Result<WordEncoder> {
         let max_layers = bundle.manifest.architecture.as_ref().map_or(0, |a| a.layers);
         let embed = bundle.manifest.embed();
         let max_batch = if o.max_batch == 0 { embed.max_batch } else { o.max_batch };
         let max_seq = if o.max_seq == 0 { embed.max_seq } else { o.max_seq };
-        if o.layers > 1 && max_layers == 0 {
-            return Err(Error::new(UNSUPPORTED_OPTION, "static_embedding has no encoder layers"));
-        }
-        if o.layers > 1 && (o.layers > max_layers || o.layers > max_batch) {
-            return Err(Error::new(
-                INVALID_ARGUMENT,
-                format!("{} layers: 1 to {}", o.layers, max_layers.min(max_batch)),
-            ));
-        }
+        validate_taps(o.layers, max_layers, max_batch)?;
         let (taps, tokenizer, max_ranges) =
-            (o.layers.max(1) as usize, Tokenizer::load(&bundle)?, max_batch.saturating_mul(max_seq));
-        let encoder = Encoder::open(dir, &EncoderOptions { max_batch, max_seq, max_ranges, layers: 0, ..o.clone() })?;
+            (o.layers.max(1) as usize, Tokenizer::load(bundle)?, max_batch.saturating_mul(max_seq));
+        let encoder = make_encoder(&EncoderOptions { max_batch, max_seq, max_ranges, layers: 0, ..o.clone() })?;
         let (cls, sep) = tokenizer.template_ends();
         let (overhead, info) = (cls.len() + sep.len(), encoder.info().clone());
         if info.max_seq as usize <= overhead {
@@ -114,6 +127,7 @@ impl WordEncoder {
             width: info.max_seq as usize - overhead,
             max_batch: info.max_batch as usize,
             max_ranges: info.max_ranges as usize,
+            max_layers,
             hidden: info.dim as usize,
             encoder,
             tokenizer,
@@ -125,6 +139,12 @@ impl WordEncoder {
             taps,
             alone: false,
         })
+    }
+
+    /// Validates that this encoder's model and session batch capacity can
+    /// read `taps` encoder layers in one pass.
+    pub fn check_taps(&self, taps: u32) -> Result<()> {
+        validate_taps(taps, self.max_layers, self.max_batch as u32)
     }
 
     /// Words tokenized by this encoder so far, not read from subwords.
@@ -220,6 +240,12 @@ impl WordEncoder {
             pieces.push(words);
         }
         self.features_of(&pieces, poolings).map(|raw| self.pack(raw, poolings.len())).map_err(|e| e.to_string())
+    }
+
+    /// Configures `(taps, alone)` for the next feature extraction call.
+    pub fn set_taps(&mut self, taps: usize, alone: bool) {
+        self.taps = taps.max(1);
+        self.alone = alone;
     }
 
     /// A word's pieces as a row holds them: the unknown piece for none,

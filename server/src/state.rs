@@ -59,6 +59,7 @@ pub(crate) struct Loaded {
     pub(crate) model: Model,
     pub(crate) task: u32,
     pub(crate) device: u32,
+    pub(crate) device_info: turbo::turbo_device_info,
     pub(crate) revision: String,
     /// The head steps the bundle provides (`progressive::heads::available`).
     pub(crate) head_steps: Vec<String>,
@@ -77,6 +78,7 @@ pub(crate) struct Served {
     pub(crate) loaded: OnceLock<Arc<Loaded>>,
     pub(crate) gliner: OnceLock<Arc<turbo_gliner::Model>>,
     pub(crate) relations: OnceLock<Arc<turbo_relation::Gliner2Relations>>,
+    pub(crate) progressive: crate::progressive::cache::ProgressiveCache,
 }
 
 /// Dropped models first, then contexts, then the runtime.
@@ -123,6 +125,7 @@ impl Served {
             loaded: OnceLock::new(),
             gliner: OnceLock::new(),
             relations: OnceLock::new(),
+            progressive: Default::default(),
         })
     }
 }
@@ -377,6 +380,7 @@ impl State {
         };
         let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
+        let device_info = rt.device_info(device).map_err(fail("turbo_runtime_device_info", &[]))?;
         if !matches!(info.task, TURBO_TASK_EMBED | TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) {
             let f = Failure::new(TURBO_E_UNSUPPORTED_TASK, 0, format!("unsupported task {}", info.task));
             return Err(fail("turbo_model_get_info", &[])(f));
@@ -438,6 +442,7 @@ impl State {
             model,
             task: info.task,
             device,
+            device_info,
             revision: api::field(&info.revision),
             head_steps,
             vocabulary: m.vocabulary.clone(),

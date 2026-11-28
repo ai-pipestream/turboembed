@@ -108,13 +108,27 @@ pub struct EncoderInfo {
     pub execution: Execution,
 }
 
-/// A loaded model and one session on it. A session has one owner at a
-/// time, as the C interface says; `&mut self` holds it to that.
+/// A borrowed `turbo_session` handle returned to its pool when dropped.
+pub trait PooledSession {
+    /// Raw session handle valid for the lifetime of this guard.
+    fn as_ptr(&self) -> *mut turbo_session;
+}
+
+/// Source of pooled `turbo_session` handles on an already-loaded `turbo_model`.
+pub trait SessionSource: Send + Sync {
+    /// Acquires one session prepared to accept up to `min_ranges` ranges.
+    fn acquire(&self, min_ranges: u32) -> Result<Box<dyn PooledSession + '_>, Error>;
+}
+
+/// A loaded model and one session on it, or a pooled session source over a
+/// pre-loaded model. A session has one owner at a time, as the C interface
+/// says; `&mut self` or the leased [`PooledSession`] holds it to that.
 pub struct Encoder {
     rt: *mut turbo_runtime,
     ctx: *mut turbo_context,
     model: *mut turbo_model,
     session: *mut turbo_session,
+    pool: Option<std::sync::Arc<dyn SessionSource>>,
     info: EncoderInfo,
     device: turbo_device_info,
     model_info: turbo_model_info,
@@ -170,17 +184,60 @@ fn dtype_name(dtype: u32) -> String {
     }
 }
 
+fn session_desc_for(m: &turbo_model_info, o: &EncoderOptions) -> Result<(u32, turbo_session_desc), Error> {
+    if m.task != TURBO_TASK_EMBED {
+        return Err(Error::new(turbo::status::UNSUPPORTED_TASK, "embedding Encoder requires TASK_EMBED"));
+    }
+    let max_batch = if o.max_batch == 0 { m.max_batch } else { o.max_batch };
+    let max_seq = if o.max_seq == 0 { m.max_seq } else { o.max_seq };
+    let max_ranges = match o.max_ranges {
+        0 => default_ranges(max_batch, max_seq).saturating_mul(o.layers.max(1)).min(max_batch.saturating_mul(max_seq)),
+        n => n,
+    };
+    let desc = turbo_session_desc {
+        struct_size: size_of::<turbo_session_desc>() as u32,
+        max_batch,
+        max_seq,
+        precision: o.precision.code(),
+        tuning: TURBO_AUTOTUNE_RUNTIME,
+        tuning_budget_ms: 0,
+        cpu_threads: o.cpu_threads,
+        max_ranges,
+    };
+    Ok((max_ranges, desc))
+}
+
+fn build_encoder_info(
+    m: &turbo_model_info,
+    s: &turbo_session_info,
+    device: &turbo_device_info,
+    max_ranges: u32,
+    precision: Precision,
+) -> EncoderInfo {
+    EncoderInfo {
+        dim: m.dim,
+        max_batch: s.max_batch,
+        max_seq: s.max_seq,
+        max_ranges,
+        pooling: m.pooling,
+        l2: m.normalize == TURBO_NORMALIZE_L2,
+        compute_dtype: s.compute_dtype,
+        execution: Execution {
+            backend: field(&device.backend),
+            device: field(&device.name),
+            precision: format!("{} ({})", dtype_name(s.compute_dtype), precision.name()),
+        },
+    }
+}
+
 impl Encoder {
-    /// The bundle at `dir` on the device `o` names, and a session on it.
-    pub fn open(dir: &Path, o: &EncoderOptions) -> Result<Encoder, Error> {
-        let path =
-            dir.to_str().ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("{}: not a UTF-8 path", dir.display())))?;
-        let mut err = new_error();
-        let mut e = Encoder {
+    fn blank(layers: u32, pool: Option<std::sync::Arc<dyn SessionSource>>) -> Encoder {
+        Encoder {
             rt: ptr::null_mut(),
             ctx: ptr::null_mut(),
             model: ptr::null_mut(),
             session: ptr::null_mut(),
+            pool,
             info: EncoderInfo {
                 dim: 0,
                 max_batch: 0,
@@ -191,15 +248,41 @@ impl Encoder {
                 compute_dtype: 0,
                 execution: Execution { backend: String::new(), device: String::new(), precision: String::new() },
             },
-            // SAFETY: both are plain C data, for which all zeros is a value.
+            // SAFETY: plain C data structs, for which all zeros is a valid value.
             device: unsafe { std::mem::zeroed() },
             model_info: unsafe { std::mem::zeroed() },
             desc: unsafe { std::mem::zeroed() },
-            layers: o.layers,
+            layers,
             every_layer: false,
             #[cfg(test)]
             runs: (0, 0),
-        };
+        }
+    }
+
+    /// Builds an [`Encoder`] driving sessions leased from `pool` on an
+    /// already-loaded `TASK_EMBED` model without reloading weights from disk.
+    pub fn from_pool(
+        pool: std::sync::Arc<dyn SessionSource>,
+        model_info: turbo_model_info,
+        session_info: turbo_session_info,
+        device: turbo_device_info,
+        o: &EncoderOptions,
+    ) -> Result<Encoder, Error> {
+        let (max_ranges, desc) = session_desc_for(&model_info, o)?;
+        let mut e = Self::blank(o.layers, Some(pool));
+        e.info = build_encoder_info(&model_info, &session_info, &device, max_ranges, o.precision);
+        e.device = device;
+        e.model_info = model_info;
+        e.desc = desc;
+        Ok(e)
+    }
+
+    /// The bundle at `dir` on the device `o` names, and a session on it.
+    pub fn open(dir: &Path, o: &EncoderOptions) -> Result<Encoder, Error> {
+        let path =
+            dir.to_str().ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("{}: not a UTF-8 path", dir.display())))?;
+        let mut err = new_error();
+        let mut e = Self::blank(o.layers, None);
         check(unsafe { turbo_runtime_create(ptr::null(), &mut e.rt, &mut err) }, &err)?;
         let index = e.device_index(&o.device)?;
         let device = e.device_info_at(index)?;
@@ -210,28 +293,7 @@ impl Encoder {
         let mut m: turbo_model_info = unsafe { std::mem::zeroed() };
         m.struct_size = size_of::<turbo_model_info>() as u32;
         check(unsafe { turbo_model_get_info(e.model, &mut m, &mut err) }, &err)?;
-        if m.task != TURBO_TASK_EMBED {
-            return Err(Error::new(turbo::status::UNSUPPORTED_TASK, "embedding Encoder requires TASK_EMBED"));
-        }
-
-        let max_batch = if o.max_batch == 0 { m.max_batch } else { o.max_batch };
-        let max_seq = if o.max_seq == 0 { m.max_seq } else { o.max_seq };
-        let max_ranges = match o.max_ranges {
-            0 => default_ranges(max_batch, max_seq)
-                .saturating_mul(o.layers.max(1))
-                .min(max_batch.saturating_mul(max_seq)),
-            n => n,
-        };
-        let desc = turbo_session_desc {
-            struct_size: size_of::<turbo_session_desc>() as u32,
-            max_batch,
-            max_seq,
-            precision: o.precision.code(),
-            tuning: TURBO_AUTOTUNE_RUNTIME,
-            tuning_budget_ms: 0,
-            cpu_threads: o.cpu_threads,
-            max_ranges,
-        };
+        let (max_ranges, desc) = session_desc_for(&m, o)?;
         e.desc = desc;
         let backend = field(&device.backend);
         check(unsafe { turbo_session_create(e.model, &desc, &mut e.session, &mut err) }, &err)
@@ -240,20 +302,7 @@ impl Encoder {
         s.struct_size = size_of::<turbo_session_info>() as u32;
         check(unsafe { turbo_session_get_info(e.session, &mut s, &mut err) }, &err)?;
 
-        e.info = EncoderInfo {
-            dim: m.dim,
-            max_batch: s.max_batch,
-            max_seq: s.max_seq,
-            max_ranges,
-            pooling: m.pooling,
-            l2: m.normalize == TURBO_NORMALIZE_L2,
-            compute_dtype: s.compute_dtype,
-            execution: Execution {
-                backend,
-                device: field(&device.name),
-                precision: format!("{} ({})", dtype_name(s.compute_dtype), o.precision.name()),
-            },
-        };
+        e.info = build_encoder_info(&m, &s, &device, max_ranges, o.precision);
         e.device = device;
         e.model_info = m;
         Ok(e)
@@ -277,6 +326,9 @@ impl Encoder {
     /// The first CPU device the runtime lists, which names the host
     /// processor; None when this build lists none.
     pub fn host_cpu(&self) -> Result<Option<turbo_device_info>, Error> {
+        if self.rt.is_null() {
+            return Ok((self.device.kind == TURBO_DEVICE_CPU).then_some(self.device.clone()));
+        }
         for i in 0..self.device_count()? {
             let d = self.device_info_at(i)?;
             if d.kind == TURBO_DEVICE_CPU {

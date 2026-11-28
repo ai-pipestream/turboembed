@@ -36,8 +36,13 @@ impl SubwordAnnotator {
     /// reference ids as the core checks it on every load.
     pub fn open(dir: &Path) -> Result<SubwordAnnotator, turbo::status::Error> {
         let bundle = Bundle::open(dir)?;
-        let tokenizer = Tokenizer::load(&bundle)?;
-        Ok(SubwordAnnotator::new(tokenizer, &bundle))
+        Self::open_bundle(&bundle)
+    }
+
+    /// Builds a [`SubwordAnnotator`] from an already-opened [`Bundle`].
+    pub fn open_bundle(bundle: &Bundle) -> Result<SubwordAnnotator, turbo::status::Error> {
+        let tokenizer = Tokenizer::load(bundle)?;
+        Ok(SubwordAnnotator::new(tokenizer, bundle))
     }
 
     /// A tokenizer already built from `bundle`, which names the model in

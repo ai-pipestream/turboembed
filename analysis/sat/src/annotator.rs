@@ -138,6 +138,16 @@ impl SatAnnotator {
     /// `CLASSIFIER_TOKEN` head in its manifest.
     pub fn open(dir: &Path, o: &SatOptions) -> CoreResult<SatAnnotator> {
         let bundle = Bundle::open(dir)?;
+        Self::open_with(&bundle, o, |eo| Encoder::open(dir, eo))
+    }
+
+    /// Builds a [`SatAnnotator`] from an already-opened [`Bundle`] and a
+    /// caller-supplied [`Encoder`] factory.
+    pub fn open_with(
+        bundle: &Bundle,
+        o: &SatOptions,
+        make_encoder: impl FnOnce(&EncoderOptions) -> CoreResult<Encoder>,
+    ) -> CoreResult<SatAnnotator> {
         let m = &bundle.manifest;
         let id = &m.model.id;
         if m.architecture.is_none() {
@@ -145,7 +155,7 @@ impl SatAnnotator {
         }
         let embed =
             m.embed.as_ref().ok_or_else(|| CoreError::new(INVALID_ARGUMENT, format!("{id}: no embed block")))?;
-        let tokenizer = Tokenizer::load(&bundle)?;
+        let tokenizer = Tokenizer::load(bundle)?;
         let max_batch = if o.encoder.max_batch == 0 { embed.max_batch } else { o.encoder.max_batch };
         let max_seq = if o.encoder.max_seq == 0 { embed.max_seq } else { o.encoder.max_seq };
         let (row_head, row_tail) = tokenizer.template_ends();
@@ -174,9 +184,9 @@ impl SatAnnotator {
         eo.max_batch = max_batch;
         eo.max_seq = max_seq;
         eo.max_ranges = max_batch.saturating_mul(max_seq);
-        let encoder = Encoder::open(dir, &eo)?;
+        let encoder = make_encoder(&eo)?;
         let info = encoder.info().clone();
-        let head = Head::load(&bundle, o.label, info.dim)?;
+        let head = Head::load(bundle, o.label, info.dim)?;
         let config = config_hash(o, threshold, block, stride);
         let word_start = (0..tokenizer.vocab_size() as i32).find(|&i| tokenizer.piece(i) == Some("\u{2581}"));
         Ok(SatAnnotator {
@@ -189,7 +199,7 @@ impl SatAnnotator {
             }),
             tokenizer,
             head,
-            model: crate::model_ref(&bundle),
+            model: crate::model_ref(bundle),
             execution: info.execution,
             threshold,
             stride,

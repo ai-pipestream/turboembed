@@ -3,7 +3,8 @@
 //! protection, and pre-execution deadline cancellation.
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio::sync::Notify;
@@ -59,9 +60,27 @@ impl Priority {
     }
 }
 
+enum Wake {
+    Async(Arc<Notify>),
+    Sync(Arc<(Mutex<bool>, Condvar)>),
+}
+
+impl Wake {
+    fn wake(&self) {
+        match self {
+            Wake::Async(n) => n.notify_one(),
+            Wake::Sync(pair) => {
+                let (lock, cvar) = &**pair;
+                *lock.lock().unwrap_or_else(|e| e.into_inner()) = true;
+                cvar.notify_one();
+            }
+        }
+    }
+}
+
 struct Waiter {
     ticket: u64,
-    notify: Arc<Notify>,
+    wake: Wake,
 }
 
 struct PoolInner {
@@ -89,6 +108,71 @@ impl PoolInner {
         }
     }
 
+    fn claim(&mut self, priority: Priority, now: Instant) -> usize {
+        let index = self.idle.pop().expect("checked non-empty");
+        match priority {
+            Priority::Interactive => self.interactive_streak = self.interactive_streak.saturating_add(1),
+            Priority::Bulk => {
+                self.interactive_streak = 0;
+                self.bulk_deferred_until = None;
+            }
+        }
+        self.wake_next(now);
+        index
+    }
+
+    fn try_grant_immediate(&mut self, priority: Priority, now: Instant) -> Option<usize> {
+        if self.idle.is_empty() {
+            return None;
+        }
+        let ok = match priority {
+            Priority::Interactive => {
+                self.interactive_q.is_empty()
+                    && !(self.has_bulk_waiting(now) && self.interactive_streak >= MAX_INTERACTIVE_BURST)
+            }
+            Priority::Bulk => {
+                self.bulk_q.is_empty()
+                    && (self.interactive_q.is_empty() || self.interactive_streak >= MAX_INTERACTIVE_BURST)
+            }
+        };
+        ok.then(|| self.claim(priority, now))
+    }
+
+    fn try_grant_queued(&mut self, priority: Priority, ticket: u64, now: Instant) -> Option<usize> {
+        if self.idle.is_empty() {
+            return None;
+        }
+        let ok = match priority {
+            Priority::Interactive => {
+                self.interactive_q.front().is_some_and(|w| w.ticket == ticket)
+                    && !(self.has_bulk_waiting(now) && self.interactive_streak >= MAX_INTERACTIVE_BURST)
+            }
+            Priority::Bulk => {
+                self.bulk_q.front().is_some_and(|w| w.ticket == ticket)
+                    && (self.interactive_q.is_empty() || self.interactive_streak >= MAX_INTERACTIVE_BURST)
+            }
+        };
+        if !ok {
+            return None;
+        }
+        self.remove_ticket(priority, ticket);
+        Some(self.claim(priority, now))
+    }
+
+    fn enqueue(&mut self, priority: Priority, wake: Wake) -> api::Result<u64> {
+        if self.total_queued() >= MAX_QUEUE_DEPTH {
+            return Err(Failure::new(TURBO_E_BUSY, 0, format!("priority queue depth reached limit {MAX_QUEUE_DEPTH}")));
+        }
+        let ticket = self.next_ticket;
+        self.next_ticket = self.next_ticket.wrapping_add(1);
+        let waiter = Waiter { ticket, wake };
+        match priority {
+            Priority::Interactive => self.interactive_q.push_back(waiter),
+            Priority::Bulk => self.bulk_q.push_back(waiter),
+        }
+        Ok(ticket)
+    }
+
     fn wake_next(&self, now: Instant) {
         if self.idle.is_empty() {
             return;
@@ -96,11 +180,11 @@ impl PoolInner {
         if let Some(w) = self.interactive_q.front()
             && !(self.has_bulk_waiting(now) && self.interactive_streak >= MAX_INTERACTIVE_BURST)
         {
-            w.notify.notify_one();
+            w.wake.wake();
             return;
         }
         if let Some(w) = self.bulk_q.front() {
-            w.notify.notify_one();
+            w.wake.wake();
         }
     }
 }
@@ -271,45 +355,10 @@ impl Loaded {
         let notify = Arc::new(Notify::new());
         let (ticket, mut guard) = {
             let mut g = self.pool.inner.lock().unwrap_or_else(|e| e.into_inner());
-            let now = Instant::now();
-            if !g.idle.is_empty() {
-                let can_grant_now = match priority {
-                    Priority::Interactive => {
-                        g.interactive_q.is_empty()
-                            && !(g.has_bulk_waiting(now) && g.interactive_streak >= MAX_INTERACTIVE_BURST)
-                    }
-                    Priority::Bulk => {
-                        g.bulk_q.is_empty()
-                            && (g.interactive_q.is_empty() || g.interactive_streak >= MAX_INTERACTIVE_BURST)
-                    }
-                };
-                if can_grant_now {
-                    let index = g.idle.pop().expect("checked non-empty");
-                    match priority {
-                        Priority::Interactive => g.interactive_streak = g.interactive_streak.saturating_add(1),
-                        Priority::Bulk => {
-                            g.interactive_streak = 0;
-                            g.bulk_deferred_until = None;
-                        }
-                    }
-                    g.wake_next(now);
-                    return Ok(Held { loaded: self.clone(), index });
-                }
+            if let Some(index) = g.try_grant_immediate(priority, Instant::now()) {
+                return Ok(Held { loaded: self.clone(), index });
             }
-            if g.total_queued() >= MAX_QUEUE_DEPTH {
-                return Err(Failure::new(
-                    TURBO_E_BUSY,
-                    0,
-                    format!("priority queue depth reached limit {MAX_QUEUE_DEPTH}"),
-                ));
-            }
-            let ticket = g.next_ticket;
-            g.next_ticket = g.next_ticket.wrapping_add(1);
-            let waiter = Waiter { ticket, notify: Arc::clone(&notify) };
-            match priority {
-                Priority::Interactive => g.interactive_q.push_back(waiter),
-                Priority::Bulk => g.bulk_q.push_back(waiter),
-            }
+            let ticket = g.enqueue(priority, Wake::Async(Arc::clone(&notify)))?;
             (ticket, TicketGuard { loaded: self, priority, ticket, active: true })
         };
 
@@ -326,31 +375,9 @@ impl Loaded {
                 }
 
                 let now = Instant::now();
-                if !g.idle.is_empty() {
-                    let can_grant = match priority {
-                        Priority::Interactive => {
-                            g.interactive_q.front().is_some_and(|w| w.ticket == ticket)
-                                && !(g.has_bulk_waiting(now) && g.interactive_streak >= MAX_INTERACTIVE_BURST)
-                        }
-                        Priority::Bulk => {
-                            g.bulk_q.front().is_some_and(|w| w.ticket == ticket)
-                                && (g.interactive_q.is_empty() || g.interactive_streak >= MAX_INTERACTIVE_BURST)
-                        }
-                    };
-                    if can_grant {
-                        g.remove_ticket(priority, ticket);
-                        guard.disarm();
-                        let index = g.idle.pop().expect("checked non-empty");
-                        match priority {
-                            Priority::Interactive => g.interactive_streak = g.interactive_streak.saturating_add(1),
-                            Priority::Bulk => {
-                                g.interactive_streak = 0;
-                                g.bulk_deferred_until = None;
-                            }
-                        }
-                        g.wake_next(now);
-                        return Ok(Held { loaded: self.clone(), index });
-                    }
+                if let Some(index) = g.try_grant_queued(priority, ticket, now) {
+                    guard.disarm();
+                    return Ok(Held { loaded: self.clone(), index });
                 }
 
                 let mut dur = match deadline.stop_at() {
@@ -377,6 +404,62 @@ impl Loaded {
             tokio::select! {
                 _ = notify.notified() => {}
                 _ = tokio::time::sleep(sleep_dur) => {}
+            }
+        }
+    }
+
+    /// Blocking counterpart of [`Self::acquire_async`] for synchronous worker
+    /// threads (`AnalyzeDocumentProgressive`).
+    pub(crate) fn acquire_blocking(
+        self: &Arc<Loaded>,
+        priority: Priority,
+        cancel: Option<&AtomicBool>,
+    ) -> api::Result<Held> {
+        let is_cancelled = || cancel.is_some_and(|c| c.load(Ordering::Relaxed));
+        if is_cancelled() {
+            self.metrics.record_cancelled_before_exec();
+            return Err(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"));
+        }
+        let pair = Arc::new((Mutex::new(false), Condvar::new()));
+        let (ticket, mut guard) = {
+            let mut g = self.pool.inner.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(index) = g.try_grant_immediate(priority, Instant::now()) {
+                return Ok(Held { loaded: self.clone(), index });
+            }
+            let ticket = g.enqueue(priority, Wake::Sync(Arc::clone(&pair)))?;
+            (ticket, TicketGuard { loaded: self, priority, ticket, active: true })
+        };
+
+        loop {
+            let sleep_dur = {
+                let mut g = self.pool.inner.lock().unwrap_or_else(|e| e.into_inner());
+                if is_cancelled() {
+                    g.remove_ticket(priority, ticket);
+                    guard.disarm();
+                    g.wake_next(Instant::now());
+                    drop(g);
+                    self.metrics.record_cancelled_before_exec();
+                    return Err(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"));
+                }
+                let now = Instant::now();
+                if let Some(index) = g.try_grant_queued(priority, ticket, now) {
+                    guard.disarm();
+                    return Ok(Held { loaded: self.clone(), index });
+                }
+                *pair.0.lock().unwrap_or_else(|e| e.into_inner()) = false;
+                let mut dur = WAIT_SLICE;
+                if priority == Priority::Interactive
+                    && g.interactive_streak >= MAX_INTERACTIVE_BURST
+                    && let Some(until) = g.bulk_deferred_until
+                    && until > now
+                {
+                    dur = dur.min(until - now);
+                }
+                dur
+            };
+            let ready = pair.0.lock().unwrap_or_else(|e| e.into_inner());
+            if !*ready {
+                let _ = pair.1.wait_timeout(ready, sleep_dur);
             }
         }
     }

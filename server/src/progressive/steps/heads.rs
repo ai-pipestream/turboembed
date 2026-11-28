@@ -10,7 +10,7 @@
 //! and so are two steps writing one output (`ambiguous output`); see
 //! docs/grpc-analysis.md "Learned head steps" for the output keys.
 
-mod group;
+pub(crate) mod group;
 mod steps;
 
 use std::path::Path;
@@ -59,7 +59,7 @@ pub(super) const RULE_SENTENCES: [&str; 2] = ["turbo-sentdetect:rules", "turbo:s
 const RULE_ENTITIES: [&str; 2] = ["turbo-geo:names", "turbo:entities"];
 
 /// One head step: the layer it writes and the head kind that writes it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HeadStep {
     Pos,
     Morphology,
@@ -411,16 +411,7 @@ pub(super) fn plan(cx: Option<&EmbedContext>, step_names: &[&str], who: &str) ->
         return Err(ambiguous_output(rule, HeadStep::Entities.name(), Entities::ID));
     }
     let cx = cx.expect("embed context resolved");
-    let bundle_dir = &cx.loaded.bundle;
-    let bundle = Bundle::open(Path::new(bundle_dir))
-        .map_err(|e| Failure::new(e.code, 0, format!("bundle heads: {}", e.message)))?;
-    let mut heads: Vec<(HeadStep, String)> = Vec::with_capacity(steps.len());
-    for &(s, selected) in &steps {
-        let spec = s.resolve(&bundle, selected).map_err(|e| e.failure(who, bundle_dir))?;
-        heads.push((s, spec.name.clone()));
-    }
-    let group = HeadGroup::open_resolved(Path::new(bundle_dir), &heads, &cx.encoder_options())
-        .map_err(|e| Failure::new(e.code, 0, format!("bundle heads: {}", e.message)))?;
+    let group = cx.head_group(&steps, who)?;
     let spans = if has(HeadStep::Entities) || rule_entities.is_some() { SPANS_INSTANCE } else { "" };
     Ok(Some(Plan { group, spans, learned_sentences: has(HeadStep::Sentences) }))
 }

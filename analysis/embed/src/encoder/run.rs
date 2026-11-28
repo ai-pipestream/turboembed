@@ -28,6 +28,11 @@ impl Encoder {
         if self.info.max_ranges >= needed {
             return Ok(());
         }
+        if self.pool.is_some() {
+            self.desc.max_ranges = needed;
+            self.info.max_ranges = needed;
+            return Ok(());
+        }
         let mut desc = self.desc;
         desc.max_ranges = needed;
         let mut replacement = ptr::null_mut();
@@ -40,6 +45,20 @@ impl Encoder {
         Ok(())
     }
 
+    fn with_session(
+        &mut self,
+        min_ranges: u32,
+        f: impl FnOnce(&mut Self, *mut turbo_session) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        match self.pool.clone() {
+            Some(pool) => {
+                let lease = pool.acquire(min_ranges).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
+                f(self, lease.as_ptr())
+            }
+            None => f(self, self.session),
+        }
+    }
+
     /// Late pooling: `rows` encoded once and, into `out`, the mean of the
     /// encoder's states over each range's tokens (`[ranges.len(), dim]`
     /// when `EncoderOptions::layers` is 0 or 1, or `[layers, ranges.len(),
@@ -47,18 +66,21 @@ impl Encoder {
     /// wants unit vectors normalizes them with `normalize`, as the core
     /// would.
     pub fn run_ranges(&mut self, rows: &Rows, ranges: &[turbo_token_range], out: &mut Vec<f32>) -> Result<(), Error> {
-        let o = turbo_embed_options { layers: self.layers, ..options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE) };
-        let mut err = new_error();
         let n = ranges.len() as u32;
-        let rc = unsafe { turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, &o, &mut err) };
-        check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
-        forwarded(rows);
-        #[cfg(test)]
-        {
-            self.runs.0 += 1;
-            self.runs.1 += rows.len() as usize;
-        }
-        self.run(n.saturating_mul(self.layers.max(1)), out)
+        let total = n.saturating_mul(self.layers.max(1));
+        self.with_session(total, |this, session| {
+            let o = turbo_embed_options { layers: this.layers, ..options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE) };
+            let mut err = new_error();
+            let rc = unsafe { turbo_embed_write_ranges(session, &rows.batch(), ranges.as_ptr(), n, &o, &mut err) };
+            check(rc, &err).map_err(|x| needs_range_write(x, &this.info.execution.backend))?;
+            forwarded(rows);
+            #[cfg(test)]
+            {
+                this.runs.0 += 1;
+                this.runs.1 += rows.len() as usize;
+            }
+            this.run_on(session, total, out)
+        })
     }
 
     /// `run_ranges` from each of the encoder's last `layers` layers in one
@@ -73,20 +95,23 @@ impl Encoder {
         layers: u32,
         out: &mut Vec<f32>,
     ) -> Result<(), Error> {
-        let o = options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
-        let mut err = new_error();
         let n = ranges.len() as u32;
-        let rc = unsafe {
-            turbo_embed_write_layer_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, layers, &o, &mut err)
-        };
-        check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
-        forwarded(rows);
-        #[cfg(test)]
-        {
-            self.runs.0 += 1;
-            self.runs.1 += rows.len() as usize;
-        }
-        self.run(n.saturating_mul(layers), out)
+        let total = n.saturating_mul(layers);
+        self.with_session(total, |this, session| {
+            let o = options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
+            let mut err = new_error();
+            let rc = unsafe {
+                turbo_embed_write_layer_ranges(session, &rows.batch(), ranges.as_ptr(), n, layers, &o, &mut err)
+            };
+            check(rc, &err).map_err(|x| needs_range_write(x, &this.info.execution.backend))?;
+            forwarded(rows);
+            #[cfg(test)]
+            {
+                this.runs.0 += 1;
+                this.runs.1 += rows.len() as usize;
+            }
+            this.run_on(session, total, out)
+        })
     }
 
     /// `run_layer_ranges` for the first of those `layers` alone, layer L -
@@ -106,18 +131,28 @@ impl Encoder {
     ) -> Result<(), Error> {
         let n = ranges.len() as u32;
         if layers > 1 && !self.every_layer {
-            let o = turbo_embed_options { layer_alone: 1, ..options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE) };
-            let mut err = new_error();
-            let rc = unsafe {
-                turbo_embed_write_layer_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, layers, &o, &mut err)
-            };
-            match check(rc, &err) {
-                Ok(()) => {
-                    forwarded(rows);
-                    return self.run(n, out);
+            let mut fallback = false;
+            self.with_session(n, |this, session| {
+                let o = turbo_embed_options { layer_alone: 1, ..options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE) };
+                let mut err = new_error();
+                let rc = unsafe {
+                    turbo_embed_write_layer_ranges(session, &rows.batch(), ranges.as_ptr(), n, layers, &o, &mut err)
+                };
+                match check(rc, &err) {
+                    Ok(()) => {
+                        forwarded(rows);
+                        this.run_on(session, n, out)
+                    }
+                    Err(e) if e.code == UNSUPPORTED_OPTION && e.field == 10 => {
+                        this.every_layer = true;
+                        fallback = true;
+                        Ok(())
+                    }
+                    Err(e) => Err(needs_range_write(e, &this.info.execution.backend)),
                 }
-                Err(e) if e.code == UNSUPPORTED_OPTION && e.field == 10 => self.every_layer = true,
-                Err(e) => return Err(needs_range_write(e, &self.info.execution.backend)),
+            })?;
+            if !fallback {
+                return Ok(());
             }
         }
         self.run_layer_ranges(rows, ranges, layers, out)?;
@@ -135,29 +170,27 @@ impl Encoder {
     /// `TURBO_POOLING_MODEL` pools as the bundle says (the first token for
     /// a CLS-pooled model such as BGE).
     pub fn run_rows_pooled(&mut self, rows: &Rows, pooling: u32, l2: bool, out: &mut Vec<f32>) -> Result<(), Error> {
-        let normalize = if l2 { TURBO_NORMALIZE_L2 } else { TURBO_NORMALIZE_NONE };
-        let o = options(pooling, normalize);
-        let mut err = new_error();
-        check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
-        forwarded(rows);
-        self.run(rows.len(), out)
+        self.with_session(0, |this, session| {
+            let normalize = if l2 { TURBO_NORMALIZE_L2 } else { TURBO_NORMALIZE_NONE };
+            let o = options(pooling, normalize);
+            let mut err = new_error();
+            check(unsafe { turbo_embed_write_tokens(session, &rows.batch(), &o, &mut err) }, &err)?;
+            forwarded(rows);
+            this.run_on(session, rows.len(), out)
+        })
     }
 
     /// Sequence-classification CLS path (`#208`): `rows` encoded once and, into
     /// `out`, the first token's (`[CLS]` / `<s>`) final hidden state per row,
     /// unnormalized: `[rows.len(), dim]` values.
     pub fn run_cls(&mut self, rows: &Rows, out: &mut Vec<f32>) -> Result<(), Error> {
-        let o = options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE);
-        let mut err = new_error();
-        check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
-        forwarded(rows);
-        self.run(rows.len(), out)
+        self.run_rows_pooled(rows, TURBO_POOLING_CLS, false, out)
     }
 
-    /// Runs what was written and reads its `batch` vectors into `out`,
-    /// which is resized to them and otherwise reused. A result of another
-    /// shape, or a read of fewer bytes, is an error.
-    fn run(&mut self, batch: u32, out: &mut Vec<f32>) -> Result<(), Error> {
+    /// Runs what was written on `session` and reads its `batch` vectors into
+    /// `out`, which is resized to them and otherwise reused. A result of
+    /// another shape, or a read of fewer bytes, is an error.
+    fn run_on(&mut self, session: *mut turbo_session, batch: u32, out: &mut Vec<f32>) -> Result<(), Error> {
         struct Owned(*mut turbo_result);
         impl Drop for Owned {
             fn drop(&mut self) {
@@ -166,7 +199,7 @@ impl Encoder {
         }
         let mut err = new_error();
         let mut r = Owned(ptr::null_mut());
-        check(unsafe { turbo_session_run(self.session, &mut r.0, &mut err) }, &err)?;
+        check(unsafe { turbo_session_run(session, &mut r.0, &mut err) }, &err)?;
         let mut info: turbo_result_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_result_info>() as u32;
         check(unsafe { turbo_result_get_info(r.0, &mut info, &mut err) }, &err)?;

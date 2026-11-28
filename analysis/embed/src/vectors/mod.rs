@@ -167,9 +167,19 @@ impl VectorAnnotator {
     /// give.
     pub fn open(dir: &Path, o: &VectorOptions) -> Result<VectorAnnotator, CoreError> {
         let bundle = Bundle::open(dir)?;
-        let tokenizer = Tokenizer::load(&bundle)?;
-        let projection = ProjectionHead::load_optional(&bundle)?;
-        let encoder = Encoder::open(dir, &o.encoder)?;
+        Self::open_with(&bundle, o, |eo| Encoder::open(dir, eo))
+    }
+
+    /// Builds a [`VectorAnnotator`] from an already-opened [`Bundle`] and a
+    /// caller-supplied [`Encoder`] factory.
+    pub fn open_with(
+        bundle: &Bundle,
+        o: &VectorOptions,
+        make_encoder: impl FnOnce(&EncoderOptions) -> Result<Encoder, CoreError>,
+    ) -> Result<VectorAnnotator, CoreError> {
+        let tokenizer = Tokenizer::load(bundle)?;
+        let projection = ProjectionHead::load_optional(bundle)?;
+        let encoder = make_encoder(&o.encoder)?;
         let info = encoder.info().clone();
         if info.pooling != TURBO_POOLING_MEAN {
             return Err(CoreError::new(
@@ -221,7 +231,7 @@ impl VectorAnnotator {
             state: Mutex::new(state),
             tokenizer,
             projection,
-            model: crate::model_ref(&bundle),
+            model: crate::model_ref(bundle),
             execution: info.execution,
             hidden: info.dim,
             dim: out,

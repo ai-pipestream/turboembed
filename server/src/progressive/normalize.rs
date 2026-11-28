@@ -241,6 +241,12 @@ impl SubwordPieces for SubwordAnnotator {
     }
 }
 
+impl<T: SubwordPieces> SubwordPieces for std::sync::Arc<T> {
+    fn pieces(&self, view: &View) -> Result<Subwords, Error> {
+        (**self).pieces(view)
+    }
+}
+
 impl SubwordPieces for turbo_gliner::GlinerSubwords {
     fn pieces(&self, view: &View) -> Result<Subwords, Error> {
         turbo_gliner::GlinerSubwords::pieces(self, view)

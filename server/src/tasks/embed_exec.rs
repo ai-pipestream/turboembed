@@ -44,7 +44,23 @@ impl Held {
     /// `Encoder::reserve_token_ranges` does.
     pub(crate) fn reserve_token_ranges(&self) -> Result<()> {
         let slot = self.slot();
-        let needed = slot.info.max_batch.saturating_mul(slot.info.max_seq);
+        self.reserve_ranges_inner(slot.info.max_batch.saturating_mul(slot.info.max_seq), true)
+    }
+
+    /// Ensures this slot's session can accept `min_ranges` range vectors,
+    /// upgrading once to `max_batch * max_seq` when larger than the current
+    /// capacity.
+    pub(crate) fn reserve_ranges(&self, min_ranges: u32) -> Result<()> {
+        let slot = self.slot();
+        if min_ranges <= slot.max_ranges() {
+            return Ok(());
+        }
+        let target = slot.info.max_batch.saturating_mul(slot.info.max_seq).max(min_ranges);
+        self.reserve_ranges_inner(target, false)
+    }
+
+    fn reserve_ranges_inner(&self, needed: u32, ignore_no_ranges: bool) -> Result<()> {
+        let slot = self.slot();
         if slot.max_ranges() >= needed {
             return Ok(());
         }
@@ -56,7 +72,7 @@ impl Held {
                 slot.max_ranges.store(needed, Ordering::Release);
                 Ok(())
             }
-            Err(f) if f.code == TURBO_E_UNSUPPORTED_OPTION && f.field == 7 => Ok(()),
+            Err(f) if ignore_no_ranges && f.code == TURBO_E_UNSUPPORTED_OPTION && f.field == 7 => Ok(()),
             Err(f) => Err(f),
         }
     }
