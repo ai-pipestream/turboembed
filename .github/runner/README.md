@@ -36,7 +36,13 @@ only changes you would run on these hosts yourself.
 
 Each runner also takes one job: supervise.sh asks GitHub for a
 just-in-time configuration, runs the job in a new container and removes
-it, so a job cannot leave anything for the next one.
+it, so a job cannot leave anything for the next one. When the container
+does not start (`docker run` exits 125, such as with a full disk or a
+stale network endpoint of the same name), supervise.sh removes the
+runner it registered and waits a minute before the next try. Without
+that, each try left an offline registration, and a host that could not
+start containers filled the repository's limit of 10000 runners within
+hours, so no self-hosted job could start anywhere.
 
 ## Starting runners
 
